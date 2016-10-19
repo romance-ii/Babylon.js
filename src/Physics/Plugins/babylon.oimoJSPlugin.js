@@ -6,6 +6,7 @@ var BABYLON;
             this._tmpImpostorsArray = [];
             this._tmpPositionVector = BABYLON.Vector3.Zero();
             this.world = new OIMO.World(1 / 60, 2, iterations, true);
+            this.world.worldscale(1);
             this.world.clear();
             //making sure no stats are calculated
             this.world.isNoStat = true;
@@ -79,7 +80,7 @@ var BABYLON;
                     world: this.world
                 };
                 var impostors = [impostor];
-                function addToArray(parent) {
+                var addToArray = function (parent) {
                     if (!parent.getChildMeshes)
                         return;
                     parent.getChildMeshes().forEach(function (m) {
@@ -88,11 +89,11 @@ var BABYLON;
                             m.physicsImpostor._init();
                         }
                     });
-                }
+                };
                 addToArray(impostor.object);
-                function checkWithEpsilon(value) {
+                var checkWithEpsilon_1 = function (value) {
                     return Math.max(value, BABYLON.PhysicsEngine.Epsilon);
-                }
+                };
                 impostors.forEach(function (i) {
                     //get the correct bounding box
                     var oldQuaternion = i.object.rotationQuaternion;
@@ -132,7 +133,7 @@ var BABYLON;
                             var radiusX = extendSize.x;
                             var radiusY = extendSize.y;
                             var radiusZ = extendSize.z;
-                            var size = Math.max(checkWithEpsilon(radiusX), checkWithEpsilon(radiusY), checkWithEpsilon(radiusZ)) / 2;
+                            var size = Math.max(checkWithEpsilon_1(radiusX), checkWithEpsilon_1(radiusY), checkWithEpsilon_1(radiusZ)) / 2;
                             bodyConfig.type.push('sphere');
                             //due to the way oimo works with compounds, add 3 times
                             bodyConfig.size.push(size);
@@ -140,8 +141,8 @@ var BABYLON;
                             bodyConfig.size.push(size);
                             break;
                         case BABYLON.PhysicsImpostor.CylinderImpostor:
-                            var sizeX = checkWithEpsilon(extendSize.x) / 2;
-                            var sizeY = checkWithEpsilon(extendSize.y);
+                            var sizeX = checkWithEpsilon_1(extendSize.x) / 2;
+                            var sizeY = checkWithEpsilon_1(extendSize.y);
                             bodyConfig.type.push('cylinder');
                             bodyConfig.size.push(sizeX);
                             bodyConfig.size.push(sizeY);
@@ -151,9 +152,9 @@ var BABYLON;
                         case BABYLON.PhysicsImpostor.PlaneImpostor:
                         case BABYLON.PhysicsImpostor.BoxImpostor:
                         default:
-                            var sizeX = checkWithEpsilon(extendSize.x);
-                            var sizeY = checkWithEpsilon(extendSize.y);
-                            var sizeZ = checkWithEpsilon(extendSize.z);
+                            var sizeX = checkWithEpsilon_1(extendSize.x);
+                            var sizeY = checkWithEpsilon_1(extendSize.y);
+                            var sizeZ = checkWithEpsilon_1(extendSize.z);
                             bodyConfig.type.push('box');
                             bodyConfig.size.push(sizeX);
                             bodyConfig.size.push(sizeY);
@@ -307,9 +308,9 @@ var BABYLON;
             impostor.physicsBody.awake();
         };
         OimoJSPlugin.prototype.updateDistanceJoint = function (joint, maxDistance, minDistance) {
-            joint.physicsJoint.limitMotoe.upperLimit = maxDistance;
+            joint.physicsJoint.limitMotor.upperLimit = maxDistance;
             if (minDistance !== void 0) {
-                joint.physicsJoint.limitMotoe.lowerLimit = minDistance;
+                joint.physicsJoint.limitMotor.lowerLimit = minDistance;
             }
         };
         OimoJSPlugin.prototype.setMotor = function (joint, speed, maxForce, motorIndex) {
@@ -330,6 +331,6 @@ var BABYLON;
             this.world.clear();
         };
         return OimoJSPlugin;
-    })();
+    }());
     BABYLON.OimoJSPlugin = OimoJSPlugin;
 })(BABYLON || (BABYLON = {}));

@@ -12,7 +12,7 @@ var BABYLON;
             this.renderSelf = new Array();
         }
         return _InstancesBatch;
-    })();
+    }());
     BABYLON._InstancesBatch = _InstancesBatch;
     var Mesh = (function (_super) {
         __extends(Mesh, _super);
@@ -423,9 +423,9 @@ var BABYLON;
             if (!this._geometry) {
                 var result = [];
                 if (this._delayInfo) {
-                    for (var kind in this._delayInfo) {
+                    this._delayInfo.forEach(function (kind, index, array) {
                         result.push(kind);
-                    }
+                    });
                 }
                 return result;
             }
@@ -712,7 +712,9 @@ var BABYLON;
             if (!this._geometry) {
                 return;
             }
+            var oldGeometry = this._geometry;
             var geometry = this._geometry.copy(BABYLON.Geometry.RandomId());
+            oldGeometry.releaseForMesh(this, true);
             geometry.applyToMesh(this);
         };
         /**
@@ -1194,6 +1196,15 @@ var BABYLON;
             while (this.instances.length) {
                 this.instances[0].dispose();
             }
+            // Highlight layers.
+            var highlightLayers = this.getScene().highlightLayers;
+            for (var i = 0; i < highlightLayers.length; i++) {
+                var highlightLayer = highlightLayers[i];
+                if (highlightLayer) {
+                    highlightLayer.removeMesh(this);
+                    highlightLayer.removeExcludedMesh(this);
+                }
+            }
             _super.prototype.dispose.call(this, doNotRecurse);
         };
         /**
@@ -1530,6 +1541,9 @@ var BABYLON;
             mesh.id = parsedMesh.id;
             BABYLON.Tags.AddTagsTo(mesh, parsedMesh.tags);
             mesh.position = BABYLON.Vector3.FromArray(parsedMesh.position);
+            if (parsedMesh.metadata !== undefined) {
+                mesh.metadata = parsedMesh.metadata;
+            }
             if (parsedMesh.rotationQuaternion) {
                 mesh.rotationQuaternion = BABYLON.Quaternion.FromArray(parsedMesh.rotationQuaternion);
             }
@@ -1668,6 +1682,9 @@ var BABYLON;
                     var instance = mesh.createInstance(parsedInstance.name);
                     BABYLON.Tags.AddTagsTo(instance, parsedInstance.tags);
                     instance.position = BABYLON.Vector3.FromArray(parsedInstance.position);
+                    if (parsedInstance.parentId) {
+                        instance._waitingParentId = parsedInstance.parentId;
+                    }
                     if (parsedInstance.rotationQuaternion) {
                         instance.rotationQuaternion = BABYLON.Quaternion.FromArray(parsedInstance.rotationQuaternion);
                     }
@@ -2281,17 +2298,17 @@ var BABYLON;
         Mesh.MinMax = function (meshes) {
             var minVector = null;
             var maxVector = null;
-            for (var i in meshes) {
-                var mesh = meshes[i];
+            meshes.forEach(function (mesh, index, array) {
                 var boundingBox = mesh.getBoundingInfo().boundingBox;
                 if (!minVector) {
                     minVector = boundingBox.minimumWorld;
                     maxVector = boundingBox.maximumWorld;
-                    continue;
                 }
-                minVector.MinimizeInPlace(boundingBox.minimumWorld);
-                maxVector.MaximizeInPlace(boundingBox.maximumWorld);
-            }
+                else {
+                    minVector.MinimizeInPlace(boundingBox.minimumWorld);
+                    maxVector.MaximizeInPlace(boundingBox.maximumWorld);
+                }
+            });
             return {
                 min: minVector,
                 max: maxVector
@@ -2301,7 +2318,7 @@ var BABYLON;
          * Returns a Vector3, the center of the `{min:` Vector3`, max:` Vector3`}` or the center of MinMax vector3 computed from a mesh array.
          */
         Mesh.Center = function (meshesOrMinMaxVector) {
-            var minMaxVector = meshesOrMinMaxVector.min !== undefined ? meshesOrMinMaxVector : Mesh.MinMax(meshesOrMinMaxVector);
+            var minMaxVector = (meshesOrMinMaxVector instanceof Array) ? BABYLON.Mesh.MinMax(meshesOrMinMaxVector) : meshesOrMinMaxVector;
             return BABYLON.Vector3.Center(minMaxVector.min, minMaxVector.max);
         };
         /**
@@ -2372,6 +2389,6 @@ var BABYLON;
         Mesh._CAP_END = 2;
         Mesh._CAP_ALL = 3;
         return Mesh;
-    })(BABYLON.AbstractMesh);
+    }(BABYLON.AbstractMesh));
     BABYLON.Mesh = Mesh;
 })(BABYLON || (BABYLON = {}));

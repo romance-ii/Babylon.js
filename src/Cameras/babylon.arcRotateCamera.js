@@ -240,7 +240,8 @@ var BABYLON;
         };
         ArcRotateCamera.prototype._getTargetPosition = function () {
             if (this.target.getAbsolutePosition) {
-                return this.target.getAbsolutePosition();
+                var pos = this.target.getAbsolutePosition();
+                return this._targetBoundingCenter ? pos.add(this._targetBoundingCenter) : pos;
             }
             return this.target;
         };
@@ -282,8 +283,13 @@ var BABYLON;
             this.inputs.checkInputs();
             // Inertia
             if (this.inertialAlphaOffset !== 0 || this.inertialBetaOffset !== 0 || this.inertialRadiusOffset !== 0) {
-                this.alpha += this.beta <= 0 ? -this.inertialAlphaOffset : this.inertialAlphaOffset;
                 this.beta += this.inertialBetaOffset;
+                if (this.getScene().useRightHandedSystem) {
+                    this.alpha -= this.beta <= 0 ? -this.inertialAlphaOffset : this.inertialAlphaOffset;
+                }
+                else {
+                    this.alpha += this.beta <= 0 ? -this.inertialAlphaOffset : this.inertialAlphaOffset;
+                }
                 this.radius -= this.inertialRadiusOffset;
                 this.inertialAlphaOffset *= this.inertia;
                 this.inertialBetaOffset *= this.inertia;
@@ -376,9 +382,16 @@ var BABYLON;
             this.position.copyFrom(position);
             this.rebuildAnglesAndRadius();
         };
-        ArcRotateCamera.prototype.setTarget = function (target) {
+        ArcRotateCamera.prototype.setTarget = function (target, toBoundingCenter) {
+            if (toBoundingCenter === void 0) { toBoundingCenter = false; }
             if (this._getTargetPosition().equals(target)) {
                 return;
+            }
+            if (toBoundingCenter && target.getBoundingInfo) {
+                this._targetBoundingCenter = target.getBoundingInfo().boundingBox.center.clone();
+            }
+            else {
+                this._targetBoundingCenter = null;
             }
             this.target = target;
             this.rebuildAnglesAndRadius();
@@ -407,7 +420,12 @@ var BABYLON;
                     up = up.clone();
                     up = up.negate();
                 }
-                BABYLON.Matrix.LookAtLHToRef(this.position, target, up, this._viewMatrix);
+                if (this.getScene().useRightHandedSystem) {
+                    BABYLON.Matrix.LookAtRHToRef(this.position, target, up, this._viewMatrix);
+                }
+                else {
+                    BABYLON.Matrix.LookAtLHToRef(this.position, target, up, this._viewMatrix);
+                }
                 this._viewMatrix.m[12] += this.targetScreenOffset.x;
                 this._viewMatrix.m[13] += this.targetScreenOffset.y;
             }
@@ -543,6 +561,6 @@ var BABYLON;
             BABYLON.serialize()
         ], ArcRotateCamera.prototype, "allowUpsideDown", void 0);
         return ArcRotateCamera;
-    })(BABYLON.TargetCamera);
+    }(BABYLON.TargetCamera));
     BABYLON.ArcRotateCamera = ArcRotateCamera;
 })(BABYLON || (BABYLON = {}));

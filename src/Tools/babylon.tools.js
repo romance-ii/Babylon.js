@@ -200,26 +200,34 @@ var BABYLON;
             }
             return eventPrefix;
         };
-        Tools.QueueNewFrame = function (func) {
-            if (window.requestAnimationFrame)
-                window.requestAnimationFrame(func);
-            else if (window.msRequestAnimationFrame)
-                window.msRequestAnimationFrame(func);
-            else if (window.webkitRequestAnimationFrame)
-                window.webkitRequestAnimationFrame(func);
-            else if (window.mozRequestAnimationFrame)
-                window.mozRequestAnimationFrame(func);
-            else if (window.oRequestAnimationFrame)
-                window.oRequestAnimationFrame(func);
+        /**
+         * @param func - the function to be called
+         * @param requester - the object that will request the next frame. Falls back to window.
+         */
+        Tools.QueueNewFrame = function (func, requester) {
+            if (requester === void 0) { requester = window; }
+            //if WebVR is enabled AND presenting, requestAnimationFrame is triggered when enabled.
+            /*if(requester.isPresenting) {
+                return;
+            } else*/ if (requester.requestAnimationFrame)
+                requester.requestAnimationFrame(func);
+            else if (requester.msRequestAnimationFrame)
+                requester.msRequestAnimationFrame(func);
+            else if (requester.webkitRequestAnimationFrame)
+                requester.webkitRequestAnimationFrame(func);
+            else if (requester.mozRequestAnimationFrame)
+                requester.mozRequestAnimationFrame(func);
+            else if (requester.oRequestAnimationFrame)
+                requester.oRequestAnimationFrame(func);
             else {
                 window.setTimeout(func, 16);
             }
         };
-        Tools.RequestFullscreen = function (element, options) {
+        Tools.RequestFullscreen = function (element) {
             var requestFunction = element.requestFullscreen || element.msRequestFullscreen || element.webkitRequestFullscreen || element.mozRequestFullScreen;
             if (!requestFunction)
                 return;
-            requestFunction.call(element, options);
+            requestFunction.call(element);
         };
         Tools.ExitFullscreen = function () {
             if (document.exitFullscreen) {
@@ -510,10 +518,13 @@ var BABYLON;
             var context = screenshotCanvas.getContext('2d');
             // Copy the pixels to a 2D canvas
             var imageData = context.createImageData(width, height);
-            //cast is due to ts error in lib.d.ts, see here - https://github.com/Microsoft/TypeScript/issues/949
-            var castData = imageData.data;
+            var castData = (imageData.data);
             castData.set(data);
             context.putImageData(imageData, 0, 0);
+            Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
+        };
+        Tools.EncodeScreenshotCanvasData = function (successCallback, mimeType) {
+            if (mimeType === void 0) { mimeType = "image/png"; }
             var base64Image = screenshotCanvas.toDataURL(mimeType);
             if (successCallback) {
                 successCallback(base64Image);
@@ -541,6 +552,44 @@ var BABYLON;
             }
         };
         Tools.CreateScreenshot = function (engine, camera, size, successCallback, mimeType) {
+            if (mimeType === void 0) { mimeType = "image/png"; }
+            var width;
+            var height;
+            // If a precision value is specified
+            if (size.precision) {
+                width = Math.round(engine.getRenderWidth() * size.precision);
+                height = Math.round(width / engine.getAspectRatio(camera));
+            }
+            else if (size.width && size.height) {
+                width = size.width;
+                height = size.height;
+            }
+            else if (size.width && !size.height) {
+                width = size.width;
+                height = Math.round(width / engine.getAspectRatio(camera));
+            }
+            else if (size.height && !size.width) {
+                height = size.height;
+                width = Math.round(height * engine.getAspectRatio(camera));
+            }
+            else if (!isNaN(size)) {
+                height = size;
+                width = size;
+            }
+            else {
+                Tools.Error("Invalid 'size' parameter !");
+                return;
+            }
+            if (!screenshotCanvas) {
+                screenshotCanvas = document.createElement('canvas');
+            }
+            screenshotCanvas.width = width;
+            screenshotCanvas.height = height;
+            var renderContext = screenshotCanvas.getContext("2d");
+            renderContext.drawImage(engine.getRenderingCanvas(), 0, 0, width, height);
+            Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
+        };
+        Tools.CreateScreenshotUsingRenderTarget = function (engine, camera, size, successCallback, mimeType) {
             if (mimeType === void 0) { mimeType = "image/png"; }
             var width;
             var height;
@@ -630,6 +679,17 @@ var BABYLON;
             catch (e) {
             }
             return false;
+        };
+        /**
+         * Implementation from http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#answer-2117523
+         * Be aware Math.random() could cause collisions, but:
+         * "All but 6 of the 128 bits of the ID are randomly generated, which means that for any two ids, there's a 1 in 2^^122 (or 5.3x10^^36) chance they'll collide"
+         */
+        Tools.RandomId = function () {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
         };
         Object.defineProperty(Tools, "NoneLogLevel", {
             get: function () {
@@ -852,12 +912,40 @@ var BABYLON;
             return name;
         };
         Tools.first = function (array, predicate) {
-            for (var _i = 0; _i < array.length; _i++) {
-                var el = array[_i];
+            for (var _i = 0, array_1 = array; _i < array_1.length; _i++) {
+                var el = array_1[_i];
                 if (predicate(el)) {
                     return el;
                 }
             }
+        };
+        /**
+         * This method will return the name of the full name of the class, including its owning module (if any).
+         * It will works only on Javascript basic data types (number, string, ...) and instance of class declared with the @className decorator or implementing a method getClassName():string (in which case the module won't be specified).
+         * @param object the object to get the class name from
+         * @return a string that can have two forms: "moduleName.className" if module was specified when the class' Name was registered or "className" if there was not module specified.
+         */
+        Tools.getFullClassName = function (object, isType) {
+            if (isType === void 0) { isType = false; }
+            var className = null;
+            var moduleName = null;
+            if (!isType && object.getClassName) {
+                className = object.getClassName();
+            }
+            else {
+                if (object instanceof Object) {
+                    var classObj = isType ? object : Object.getPrototypeOf(object);
+                    className = classObj.constructor["__bjsclassName__"];
+                    moduleName = classObj.constructor["__bjsmoduleName__"];
+                }
+                if (!className) {
+                    className = typeof object;
+                }
+            }
+            if (!className) {
+                return null;
+            }
+            return ((moduleName != null) ? (moduleName + ".") : "") + className;
         };
         /**
          * This method can be used with hashCodeFromStream when your input is an array of values that are either: number, string, boolean or custom type implementing the getHashCode():number method.
@@ -917,7 +1005,7 @@ var BABYLON;
         Tools.StartPerformanceCounter = Tools._StartPerformanceCounterDisabled;
         Tools.EndPerformanceCounter = Tools._EndPerformanceCounterDisabled;
         return Tools;
-    })();
+    }());
     BABYLON.Tools = Tools;
     /**
      * This class is used to track a performance counter which is number based.
@@ -1056,17 +1144,19 @@ var BABYLON;
             }
         };
         return PerfCounter;
-    })();
+    }());
     BABYLON.PerfCounter = PerfCounter;
     /**
-     * Use this className as a decorator on a given class definition to add it a name.
+     * Use this className as a decorator on a given class definition to add it a name and optionally its module.
      * You can then use the Tools.getClassName(obj) on an instance to retrieve its class name.
      * This method is the only way to get it done in all cases, even if the .js file declaring the class is minified
-     * @param name
+     * @param name The name of the class, case should be preserved
+     * @param module The name of the Module hosting the class, optional, but strongly recommended to specify if possible. Case should be preserved.
      */
-    function className(name) {
+    function className(name, module) {
         return function (target) {
             target["__bjsclassName__"] = name;
+            target["__bjsmoduleName__"] = (module != null) ? module : null;
         };
     }
     BABYLON.className = className;
@@ -1152,6 +1242,6 @@ var BABYLON;
             }, callback);
         };
         return AsyncLoop;
-    })();
+    }());
     BABYLON.AsyncLoop = AsyncLoop;
 })(BABYLON || (BABYLON = {}));

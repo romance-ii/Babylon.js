@@ -63,7 +63,12 @@ var BABYLON;
                 }
             }
             else {
-                BABYLON.Tools.SetImmediate(function () { return load(); });
+                if (this._texture.isReady) {
+                    BABYLON.Tools.SetImmediate(function () { return load(); });
+                }
+                else {
+                    this._texture.onLoadedCallbacks.push(load);
+                }
             }
         }
         Object.defineProperty(Texture.prototype, "noMipmap", {
@@ -291,6 +296,6 @@ var BABYLON;
             BABYLON.serialize()
         ], Texture.prototype, "wAng", void 0);
         return Texture;
-    })(BABYLON.BaseTexture);
+    }(BABYLON.BaseTexture));
     BABYLON.Texture = Texture;
 })(BABYLON || (BABYLON = {}));

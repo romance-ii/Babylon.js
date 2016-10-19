@@ -60,9 +60,9 @@ var BABYLON;
                 return;
             }
             var tags = tagsString.split(" ");
-            for (var t in tags) {
-                Tags._AddTagTo(obj, tags[t]);
-            }
+            tags.forEach(function (tag, index, array) {
+                Tags._AddTagTo(obj, tag);
+            });
         };
         Tags._AddTagTo = function (obj, tag) {
             tag = tag.trim();
@@ -97,6 +97,6 @@ var BABYLON;
             return BABYLON.Internals.AndOrNotEvaluator.Eval(tagsQuery, function (r) { return Tags.HasTags(obj) && obj._tags[r]; });
         };
         return Tags;
-    })();
+    }());
     BABYLON.Tags = Tags;
 })(BABYLON || (BABYLON = {}));

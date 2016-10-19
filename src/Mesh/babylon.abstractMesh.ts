@@ -374,7 +374,7 @@
                 this.rotation = Vector3.Zero();
             }
             var rotationQuaternion: Quaternion;
-            if (!space || space === Space.LOCAL) {
+            if (!space || (space as any) === Space.LOCAL) {
                 rotationQuaternion = Quaternion.RotationAxisToRef(axis, amount, AbstractMesh._rotationAxisCache);
                 this.rotationQuaternion.multiplyToRef(rotationQuaternion, this.rotationQuaternion);
             }
@@ -393,7 +393,7 @@
         public translate(axis: Vector3, distance: number, space?: Space): void {
             var displacementVector = axis.scale(distance);
 
-            if (!space || space === Space.LOCAL) {
+            if (!space || (space as any) === Space.LOCAL) {
                 var tempV3 = this.getPositionExpressedInLocalSpace().add(displacementVector);
                 this.setPositionWithLocalVector(tempV3);
             }
@@ -794,7 +794,7 @@
             return this._boundingInfo.isCompletelyInFrustum(frustumPlanes);;
         }
 
-        public intersectsMesh(mesh: AbstractMesh, precise?: boolean): boolean {
+        public intersectsMesh(mesh: AbstractMesh | SolidParticle, precise?: boolean): boolean {
             if (!this._boundingInfo || !mesh._boundingInfo) {
                 return false;
             }
@@ -889,7 +889,7 @@
          * @Deprecated
          */
         public updatePhysicsBodyPosition(): void {
-            Tools.Warn("updatePhysicsBodyPosition() is deprecated, please use updatePhysicsBody()")
+            Tools.Warn("updatePhysicsBodyPosition() is deprecated, please use updatePhysicsBody()");
             this.updatePhysicsBody();
         }
 
@@ -1162,6 +1162,16 @@
                 if (meshIndex !== -1) {
                     light.excludedMeshes.splice(meshIndex, 1);
                 }
+
+                // Shadow generators
+                var generator = light.getShadowGenerator();
+                if (generator) {
+                    meshIndex = generator.getShadowMap().renderList.indexOf(this);
+
+                    if (meshIndex !== -1) {
+                        generator.getShadowMap().renderList.splice(meshIndex, 1);
+                    }
+                }
             });
 
             // Edges
@@ -1172,6 +1182,9 @@
 
             // SubMeshes
             this.releaseSubMeshes();
+
+            // Engine
+            this.getScene().getEngine().unbindAllAttributes();
 
             // Remove from scene
             this.getScene().removeMesh(this);

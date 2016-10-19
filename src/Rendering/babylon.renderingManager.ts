@@ -23,6 +23,7 @@
         private _customOpaqueSortCompareFn: { [id:number]: (a: SubMesh, b: SubMesh) => number } = {};
         private _customAlphaTestSortCompareFn: { [id:number]: (a: SubMesh, b: SubMesh) => number } = {};
         private _customTransparentSortCompareFn: { [id:number]: (a: SubMesh, b: SubMesh) => number } = {};
+        private _renderinGroupInfo: RenderingGroupInfo = null;
 
         constructor(scene: Scene) {
             this._scene = scene;
@@ -101,6 +102,18 @@
         public render(customRenderFunction: (opaqueSubMeshes: SmartArray<SubMesh>, transparentSubMeshes: SmartArray<SubMesh>, alphaTestSubMeshes: SmartArray<SubMesh>) => void,
             activeMeshes: AbstractMesh[], renderParticles: boolean, renderSprites: boolean): void {
 
+            // Check if there's at least on observer on the onRenderingGroupObservable and initialize things to fire it
+            let observable = this._scene.onRenderingGroupObservable.hasObservers() ? this._scene.onRenderingGroupObservable : null;
+            let info: RenderingGroupInfo = null;
+            if (observable) {
+                if (!this._renderinGroupInfo) {
+                    this._renderinGroupInfo = new RenderingGroupInfo();
+                }
+                info = this._renderinGroupInfo;
+                info.scene = this._scene;
+                info.camera = this._scene.activeCamera;
+            }
+
             this._currentActiveMeshes = activeMeshes;
             this._currentRenderParticles = renderParticles;
             this._currentRenderSprites = renderSprites;
@@ -113,12 +126,35 @@
                 this._currentIndex = index;
 
                 if (renderingGroup) {
+                    let renderingGroupMask = 0;
+
+                    // Fire PRECLEAR stage
+                    if (observable) {
+                        renderingGroupMask = Math.pow(2, index);
+                        info.renderStage = RenderingGroupInfo.STAGE_PRECLEAR;
+                        info.renderingGroupId = index;
+                        observable.notifyObservers(info, renderingGroupMask);
+                    }
+
+                    // Clear depth/stencil if needed
                     if (this._autoClearDepthStencil[index]) {
                         this._clearDepthStencilBuffer();
                     }
 
+                    // Fire PREOPAQUE stage
+                    if (observable) {
+                        info.renderStage = RenderingGroupInfo.STAGE_PREOPAQUE;
+                        observable.notifyObservers(info, renderingGroupMask);
+                    }
+
                     if (!renderingGroup.onBeforeTransparentRendering) {
                         renderingGroup.onBeforeTransparentRendering = this._renderSpritesAndParticles.bind(this);
+                    }
+
+                    // Fire PRETRANSPARENT stage
+                    if (observable) {
+                        info.renderStage = RenderingGroupInfo.STAGE_PRETRANSPARENT;
+                        observable.notifyObservers(info, renderingGroupMask);
                     }
 
                     if (!renderingGroup.render(customRenderFunction)) {
@@ -126,8 +162,24 @@
                         needToStepBack = true;
                         this._renderSpritesAndParticles();
                     }
+
+                    // Fire POSTTRANSPARENT stage
+                    if (observable) {
+                        info.renderStage = RenderingGroupInfo.STAGE_POSTTRANSPARENT;
+                        observable.notifyObservers(info, renderingGroupMask);
+                    }
                 } else {
                     this._renderSpritesAndParticles();
+
+                    if (observable) {
+                        let renderingGroupMask = Math.pow(2, index);
+                        info.renderStage = RenderingGroupInfo.STAGE_PRECLEAR;
+                        info.renderingGroupId = index;
+                        observable.notifyObservers(info, renderingGroupMask);
+
+                        info.renderStage = RenderingGroupInfo.STAGE_POSTTRANSPARENT;
+                        observable.notifyObservers(info, renderingGroupMask);
+                    }
                 }
 
                 if (needToStepBack) {
@@ -173,17 +225,17 @@
             opaqueSortCompareFn: (a: SubMesh, b: SubMesh) => number = null,
             alphaTestSortCompareFn: (a: SubMesh, b: SubMesh) => number = null,
             transparentSortCompareFn: (a: SubMesh, b: SubMesh) => number = null) {
-            
+
+            this._customOpaqueSortCompareFn[renderingGroupId] = opaqueSortCompareFn;
+            this._customAlphaTestSortCompareFn[renderingGroupId] = alphaTestSortCompareFn;
+            this._customTransparentSortCompareFn[renderingGroupId] = transparentSortCompareFn;
+                
             if (this._renderingGroups[renderingGroupId]) {
                 var group = this._renderingGroups[renderingGroupId];
                 group.opaqueSortCompareFn = this._customOpaqueSortCompareFn[renderingGroupId];
                 group.alphaTestSortCompareFn = this._customAlphaTestSortCompareFn[renderingGroupId];
                 group.transparentSortCompareFn = this._customTransparentSortCompareFn[renderingGroupId];
             }
-
-            this._customOpaqueSortCompareFn[renderingGroupId] = opaqueSortCompareFn;
-            this._customAlphaTestSortCompareFn[renderingGroupId] = alphaTestSortCompareFn;
-            this._customTransparentSortCompareFn[renderingGroupId] = transparentSortCompareFn;
         }
 
         /**

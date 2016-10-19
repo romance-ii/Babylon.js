@@ -9,6 +9,7 @@ var BABYLON;
             var needNormals = false;
             var needRebuild = false;
             var needShadows = false;
+            var lightmapMode = false;
             for (var index = 0; index < scene.lights.length; index++) {
                 var light = scene.lights[index];
                 if (!light.isEnabled()) {
@@ -87,6 +88,19 @@ var BABYLON;
                         needShadows = true;
                     }
                 }
+                if (light.lightmapMode != BABYLON.Light.LIGHTMAP_DEFAULT) {
+                    lightmapMode = true;
+                    if (defines["LIGHTMAPEXCLUDED" + lightIndex] === undefined) {
+                        needRebuild = true;
+                    }
+                    if (defines["LIGHTMAPNOSPECULAR" + lightIndex] === undefined) {
+                        needRebuild = true;
+                    }
+                    defines["LIGHTMAPEXCLUDED" + lightIndex] = true;
+                    if (light.lightmapMode == BABYLON.Light.LIGHTMAP_SHADOWSONLY) {
+                        defines["LIGHTMAPNOSPECULAR" + lightIndex] = true;
+                    }
+                }
                 lightIndex++;
                 if (lightIndex === maxSimultaneousLights)
                     break;
@@ -97,6 +111,12 @@ var BABYLON;
                     needRebuild = true;
                 }
                 defines["SHADOWFULLFLOAT"] = true;
+            }
+            if (defines["LIGHTMAPEXCLUDED"] === undefined) {
+                needRebuild = true;
+            }
+            if (lightmapMode) {
+                defines["LIGHTMAPEXCLUDED"] = true;
             }
             if (needRebuild) {
                 defines.rebuild();
@@ -224,7 +244,10 @@ var BABYLON;
         };
         MaterialHelper.BindBonesParameters = function (mesh, effect) {
             if (mesh && mesh.useBones && mesh.computeBonesUsingShaders) {
-                effect.setMatrices("mBones", mesh.skeleton.getTransformMatrices(mesh));
+                var matrices = mesh.skeleton.getTransformMatrices(mesh);
+                if (matrices) {
+                    effect.setMatrices("mBones", matrices);
+                }
             }
         };
         MaterialHelper.BindLogDepth = function (defines, effect, scene) {
@@ -239,6 +262,6 @@ var BABYLON;
             }
         };
         return MaterialHelper;
-    })();
+    }());
     BABYLON.MaterialHelper = MaterialHelper;
 })(BABYLON || (BABYLON = {}));

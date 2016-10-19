@@ -997,6 +997,14 @@ var BABYLON;
                 if (meshIndex !== -1) {
                     light.excludedMeshes.splice(meshIndex, 1);
                 }
+                // Shadow generators
+                var generator = light.getShadowGenerator();
+                if (generator) {
+                    meshIndex = generator.getShadowMap().renderList.indexOf(_this);
+                    if (meshIndex !== -1) {
+                        generator.getShadowMap().renderList.splice(meshIndex, 1);
+                    }
+                }
             });
             // Edges
             if (this._edgesRenderer) {
@@ -1005,6 +1013,8 @@ var BABYLON;
             }
             // SubMeshes
             this.releaseSubMeshes();
+            // Engine
+            this.getScene().getEngine().unbindAllAttributes();
             // Remove from scene
             this.getScene().removeMesh(this);
             if (!doNotRecurse) {
@@ -1047,6 +1057,6 @@ var BABYLON;
         AbstractMesh._rotationAxisCache = new BABYLON.Quaternion();
         AbstractMesh._lookAtVectorCache = new BABYLON.Vector3(0, 0, 0);
         return AbstractMesh;
-    })(BABYLON.Node);
+    }(BABYLON.Node));
     BABYLON.AbstractMesh = AbstractMesh;
 })(BABYLON || (BABYLON = {}));

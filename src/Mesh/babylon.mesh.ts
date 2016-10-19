@@ -439,9 +439,9 @@
             if (!this._geometry) {
                 var result = [];
                 if (this._delayInfo) {
-                    for (var kind in this._delayInfo) {
+                    this._delayInfo.forEach(function (kind, index, array) {
                         result.push(kind);
-                    }
+                    });
                 }
                 return result;
             }
@@ -755,7 +755,11 @@
             if (!this._geometry) {
                 return;
             }
+            var oldGeometry = this._geometry;
+
             var geometry = this._geometry.copy(Geometry.RandomId());
+
+            oldGeometry.releaseForMesh(this, true);
             geometry.applyToMesh(this);
         }
 
@@ -1336,6 +1340,16 @@
                 this.instances[0].dispose();
             }
 
+            // Highlight layers.
+            let highlightLayers = this.getScene().highlightLayers;
+            for (let i = 0; i < highlightLayers.length; i++) {
+                let highlightLayer = highlightLayers[i];
+                if (highlightLayer) {
+                    highlightLayer.removeMesh(this);
+                    highlightLayer.removeExcludedMesh(this);
+                }
+            }
+
             super.dispose(doNotRecurse);
         }
 
@@ -1727,6 +1741,10 @@
 
             mesh.position = Vector3.FromArray(parsedMesh.position);
 
+            if (parsedMesh.metadata !== undefined) {
+                mesh.metadata = parsedMesh.metadata;
+            }
+
             if (parsedMesh.rotationQuaternion) {
                 mesh.rotationQuaternion = Quaternion.FromArray(parsedMesh.rotationQuaternion);
             } else if (parsedMesh.rotation) {
@@ -1900,6 +1918,10 @@
                     Tags.AddTagsTo(instance, parsedInstance.tags);
 
                     instance.position = Vector3.FromArray(parsedInstance.position);
+
+                    if (parsedInstance.parentId) {
+                        instance._waitingParentId = parsedInstance.parentId;
+                    }
 
                     if (parsedInstance.rotationQuaternion) {
                         instance.rotationQuaternion = Quaternion.FromArray(parsedInstance.rotationQuaternion);
@@ -2565,17 +2587,16 @@
         public static MinMax(meshes: AbstractMesh[]): { min: Vector3; max: Vector3 } {
             var minVector: Vector3 = null;
             var maxVector: Vector3 = null;
-            for (var i in meshes) {
-                var mesh = meshes[i];
+            meshes.forEach(function (mesh, index, array) {
                 var boundingBox = mesh.getBoundingInfo().boundingBox;
                 if (!minVector) {
                     minVector = boundingBox.minimumWorld;
                     maxVector = boundingBox.maximumWorld;
-                    continue;
+                } else {
+                    minVector.MinimizeInPlace(boundingBox.minimumWorld);
+                    maxVector.MaximizeInPlace(boundingBox.maximumWorld);
                 }
-                minVector.MinimizeInPlace(boundingBox.minimumWorld);
-                maxVector.MaximizeInPlace(boundingBox.maximumWorld);
-            }
+            });
 
             return {
                 min: minVector,
@@ -2586,7 +2607,7 @@
          * Returns a Vector3, the center of the `{min:` Vector3`, max:` Vector3`}` or the center of MinMax vector3 computed from a mesh array.
          */
         public static Center(meshesOrMinMaxVector): Vector3 {
-            var minMaxVector = meshesOrMinMaxVector.min !== undefined ? meshesOrMinMaxVector : Mesh.MinMax(meshesOrMinMaxVector);
+            var minMaxVector = (meshesOrMinMaxVector instanceof Array) ? BABYLON.Mesh.MinMax(meshesOrMinMaxVector) : meshesOrMinMaxVector;
             return Vector3.Center(minMaxVector.min, minMaxVector.max);
         }
 

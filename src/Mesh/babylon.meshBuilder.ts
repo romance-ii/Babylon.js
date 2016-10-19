@@ -1,5 +1,17 @@
 ﻿module BABYLON {
     export class MeshBuilder {
+        private static updateSideOrientation(orientation: number, scene: Scene): number {
+            if (orientation == Mesh.DOUBLESIDE) {
+                return Mesh.DOUBLESIDE;
+            }
+
+            if (orientation === undefined || orientation === null) {
+                return Mesh.FRONTSIDE;
+            }
+
+            return orientation;
+        }
+
         /**
          * Creates a box mesh.  
          * tuto : http://doc.babylonjs.com/tutorials/Mesh_CreateXXX_Methods_With_Options_Parameter#box  
@@ -13,6 +25,9 @@
          */
         public static CreateBox(name: string, options: { size?: number, width?: number, height?: number, depth?: number, faceUV?: Vector4[], faceColors?: Color4[], sideOrientation?: number, updatable?: boolean }, scene: Scene): Mesh {
             var box = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateBox(options);
 
             vertexData.applyToMesh(box, options.updatable);
@@ -34,6 +49,9 @@
          */
         public static CreateSphere(name: string, options: { segments?: number, diameter?: number, diameterX?: number, diameterY?: number, diameterZ?: number, arc?: number, slice?: number, sideOrientation?: number, updatable?: boolean }, scene: any): Mesh {
             var sphere = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateSphere(options);
 
             vertexData.applyToMesh(sphere, options.updatable);
@@ -53,6 +71,9 @@
          */
         public static CreateDisc(name: string, options: { radius?: number, tessellation?: number, arc?: number, updatable?: boolean, sideOrientation?: number }, scene: Scene): Mesh {
             var disc = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateDisc(options);
 
             vertexData.applyToMesh(disc, options.updatable);
@@ -73,6 +94,9 @@
          */
         public static CreateIcoSphere(name: string, options: { radius?: number, radiusX?: number, radiusY?: number, radiusZ?: number, flat?: boolean, subdivisions?: number, sideOrientation?: number, updatable?: boolean }, scene: Scene): Mesh {
             var sphere = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateIcoSphere(options);
 
             vertexData.applyToMesh(sphere, options.updatable);
@@ -101,7 +125,7 @@
             var closeArray = options.closeArray;
             var closePath = options.closePath;
             var offset = options.offset;
-            var sideOrientation = options.sideOrientation;
+            var sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
             var instance = options.instance;
             var updatable = options.updatable;
 
@@ -232,6 +256,9 @@
          */
         public static CreateCylinder(name: string, options: { height?: number, diameterTop?: number, diameterBottom?: number, diameter?: number, tessellation?: number, subdivisions?: number, arc?: number, faceColors?: Color4[], faceUV?: Vector4[], updatable?: boolean, hasRings?: boolean, enclose?: boolean, sideOrientation?: number }, scene: any): Mesh {
             var cylinder = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateCylinder(options);
 
             vertexData.applyToMesh(cylinder, options.updatable);
@@ -251,6 +278,9 @@
          */
         public static CreateTorus(name: string, options: { diameter?: number, thickness?: number, tessellation?: number, updatable?: boolean, sideOrientation?: number }, scene: any): Mesh {
             var torus = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateTorus(options);
 
             vertexData.applyToMesh(torus, options.updatable);
@@ -271,6 +301,9 @@
          */
         public static CreateTorusKnot(name: string, options: { radius?: number, tube?: number, radialSegments?: number, tubularSegments?: number, p?: number, q?: number, updatable?: boolean, sideOrientation?: number }, scene: any): Mesh {
             var torusKnot = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreateTorusKnot(options);
 
             vertexData.applyToMesh(torusKnot, options.updatable);
@@ -433,7 +466,7 @@
             var rotation = options.rotation || 0;
             var cap = (options.cap === 0) ? 0 : options.cap || Mesh.NO_CAP;
             var updatable = options.updatable;
-            var sideOrientation = (options.sideOrientation === 0) ? 0 : options.sideOrientation || Mesh.DEFAULTSIDE;
+            var sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
             var instance = options.instance;
             var invertUV = options.invertUV || false;
 
@@ -484,7 +517,7 @@
             var ribbonClosePath = options.ribbonClosePath || false;
             var cap = (options.cap === 0) ? 0 : options.cap || Mesh.NO_CAP;
             var updatable = options.updatable;
-            var sideOrientation = (options.sideOrientation === 0) ? 0 : options.sideOrientation || Mesh.DEFAULTSIDE;
+            var sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
             var instance = options.instance;
             var invertUV = options.invertUV || false;
             return MeshBuilder._ExtrudeShapeGeneric(name, shape, path, null, null, scaleFunction, rotationFunction, ribbonCloseArray, ribbonClosePath, cap, true, scene, updatable, sideOrientation, instance, invertUV);
@@ -514,7 +547,7 @@
             var radius = options.radius || 1;
             var tessellation = options.tessellation || 64;
             var updatable = options.updatable;
-            var sideOrientation = (options.sideOrientation === 0) ? 0 : options.sideOrientation || Mesh.DEFAULTSIDE;
+            var sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
             var cap = options.cap || Mesh.NO_CAP;
             var pi2 = Math.PI * 2;
             var paths = new Array();
@@ -560,6 +593,8 @@
         public static CreatePlane(name: string, options: { size?: number, width?: number, height?: number, sideOrientation?: number, updatable?: boolean, sourcePlane?: Plane }, scene: Scene): Mesh {
             var plane = new Mesh(name, scene);
 
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
+
             var vertexData = VertexData.CreatePlane(options);
 
             vertexData.applyToMesh(plane, options.updatable);
@@ -583,10 +618,11 @@
          * The parameter `subdivisions` (positive integer) sets the number of subdivisions per side.       
          * The mesh can be set to updatable with the boolean parameter `updatable` (default false) if its internal geometry is supposed to change once created.  
          */
-        public static CreateGround(name: string, options: { width?: number, height?: number, subdivisions?: number, updatable?: boolean }, scene: any): Mesh {
+        public static CreateGround(name: string, options: { width?: number, height?: number, subdivisions?: number, subdivisionsX?: number, subdivisionsY?: number, updatable?: boolean }, scene: any): Mesh {
             var ground = new GroundMesh(name, scene);
             ground._setReady(false);
-            ground._subdivisions = options.subdivisions || 1;
+            ground._subdivisionsX = options.subdivisionsX || options.subdivisions || 1;
+            ground._subdivisionsY = options.subdivisionsY || options.subdivisions || 1;
             ground._width = options.width || 1;
             ground._height = options.height || 1;
             ground._maxX = ground._width / 2;
@@ -651,7 +687,8 @@
             var onReady = options.onReady;
 
             var ground = new GroundMesh(name, scene);
-            ground._subdivisions = subdivisions;
+            ground._subdivisionsX = subdivisions;
+            ground._subdivisionsY = subdivisions;
             ground._width = width;
             ground._height = height;
             ground._maxX = ground._width / 2.0;
@@ -729,7 +766,7 @@
             var cap = options.cap || Mesh.NO_CAP;
             var invertUV = options.invertUV || false;
             var updatable = options.updatable;
-            var sideOrientation = options.sideOrientation || Mesh.DEFAULTSIDE;
+            var sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
             var instance = options.instance;
             options.arc = (options.arc <= 0.0 || options.arc > 1.0) ? 1.0 : options.arc || 1.0;
 
@@ -841,6 +878,8 @@
          */
         public static CreatePolyhedron(name: string, options: { type?: number, size?: number, sizeX?: number, sizeY?: number, sizeZ?: number, custom?: any, faceUV?: Vector4[], faceColors?: Color4[], flat?: boolean, updatable?: boolean, sideOrientation?: number }, scene: Scene): Mesh {
             var polyhedron = new Mesh(name, scene);
+
+            options.sideOrientation = this.updateSideOrientation(options.sideOrientation, scene);
 
             var vertexData = VertexData.CreatePolyhedron(options);
 
@@ -1137,7 +1176,7 @@
             if (instance) { // instance update
                 path3D = ((<any>instance).path3D).update(curve);
                 pathArray = extrusionPathArray(shape, curve, (<any>instance).path3D, (<any>instance).pathArray, scale, rotation, scaleFunction, rotateFunction, (<any>instance).cap, custom);
-                instance = Mesh.CreateRibbon(null, pathArray, null, null, null, null, null, null, instance);
+                instance = Mesh.CreateRibbon(null, pathArray, null, null, null, scene, null, null, instance);
 
                 return instance;
             }

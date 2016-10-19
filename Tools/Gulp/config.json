@@ -11,11 +11,11 @@
   "core": {
     "typescript": [
       "../../src/**/*.ts",
-      "!../../src/**/*.d.ts",
-      "../../external references/**/*.d.ts"
+      "!../../src/**/*.d.ts"
     ],
     "files": [
       "../../src/Math/babylon.math.js",
+      "../../src/babylon.mixins.js",
       "../../src/Tools/babylon.decorators.js",
       "../../src/Tools/babylon.observable.js",
       "../../src/Tools/babylon.database.js",
@@ -125,7 +125,8 @@
       "../../src/Tools/babylon.loadingScreen.js",
       "../../src/Audio/babylon.audioEngine.js",
       "../../src/Audio/babylon.sound.js",
-      "../../src/Audio/babylon.soundtrack.js"
+      "../../src/Audio/babylon.soundtrack.js",
+      "../../src/Layer/babylon.highlightlayer.js"
     ]
   },
   "shadersDirectories": [
@@ -158,22 +159,6 @@
       "../../src/Tools/babylon.dynamicFloatArray.js",
       "../../src/Materials/Textures/babylon.fontTexture.js",
       "../../src/Materials/Textures/babylon.mapTexture.js",
-      "../../src/Canvas2d/babylon.bounding2d.js",
-      "../../src/Canvas2d/babylon.canvas2dLayoutEngine.js",
-      "../../src/Canvas2d/babylon.brushes2d.js",
-      "../../src/Canvas2d/babylon.smartPropertyPrim.js",
-      "../../src/Canvas2d/babylon.prim2dBase.js",
-      "../../src/Canvas2d/babylon.modelRenderCache.js",
-      "../../src/Canvas2d/babylon.renderablePrim2d.js",
-      "../../src/Canvas2d/babylon.shape2d.js",
-      "../../src/Canvas2d/babylon.group2d.js",
-      "../../src/Canvas2d/babylon.rectangle2d.js",
-      "../../src/Canvas2d/babylon.ellipse2d.js",
-      "../../src/Canvas2d/babylon.sprite2d.js",
-      "../../src/Canvas2d/babylon.text2d.js",
-      "../../src/Canvas2d/babylon.lines2d.js",
-      "../../src/Canvas2d/babylon.canvas2d.js",
-      "../../src/Canvas2d/babylon.worldSpaceCanvas2dNode.js",
       "../../src/Materials/babylon.shaderMaterial.js",
       "../../src/Tools/babylon.tools.dds.js",
       "../../src/Physics/Plugins/babylon.cannonJSPlugin.js",
@@ -234,7 +219,8 @@
       "../../src/Materials/Textures/babylon.colorGradingTexture.js",
       "../../src/Materials/babylon.colorCurves.js",
       "../../src/Materials/babylon.pbrMaterial.js",      
-      "../../src/Debug/babylon.debugLayer.js"
+      "../../src/Debug/babylon.debugLayer.js",
+      "../../src/PostProcess/babylon.standardRenderingPipeline.js"
     ]
   }
 }

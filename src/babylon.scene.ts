@@ -34,7 +34,7 @@
     export class PointerInfoBase {
         constructor(public type: number, public event: PointerEvent | MouseWheelEvent) {
         }
-        
+
     }
 
     /**
@@ -60,6 +60,55 @@
         constructor(type: number, event: PointerEvent | MouseWheelEvent, public pickInfo: PickingInfo) {
             super(type, event);
         }
+    }
+
+    /**
+     * This class is used by the onRenderingGroupObservable
+     */
+    export class RenderingGroupInfo {
+        /**
+         * The Scene that being rendered
+         */
+        scene: Scene;
+
+        /**
+         * The camera currently used for the rendering pass
+         */
+        camera: Camera;
+
+        /**
+         * The ID of the renderingGroup being processed
+         */
+        renderingGroupId: number;
+
+        /**
+         * The rendering stage, can be either STAGE_PRECLEAR, STAGE_PREOPAQUE, STAGE_PRETRANSPARENT, STAGE_POSTTRANSPARENT
+         */
+        renderStage: number;
+
+        /**
+         * Stage corresponding to the very first hook in the renderingGroup phase: before the render buffer may be cleared
+         * This stage will be fired no matter what
+         */
+        static STAGE_PRECLEAR = 1;
+
+        /**
+         * Called before opaque object are rendered.
+         * This stage will be fired only if there's 3D Opaque content to render
+         */
+        static STAGE_PREOPAQUE = 2;
+
+        /**
+         * Called after the opaque objects are rendered and before the transparent ones
+         * This stage will be fired only if there's 3D transparent content to render
+         */
+        static STAGE_PRETRANSPARENT = 3;
+
+        /**
+         * Called after the transparent object are rendered, last hook of the renderingGroup phase
+         * This stage will be fired no matter what
+         */
+        static STAGE_POSTTRANSPARENT = 4;
     }
 
     /**
@@ -103,6 +152,7 @@
         public clipPlane: Plane;
         public animationsEnabled = true;
         public constantlyUpdateMeshUnderPointer = false;
+        public useRightHandedSystem = false;
 
         public hoverCursor = "pointer";
 
@@ -233,6 +283,13 @@
         */
         public onMeshRemovedObservable = new Observable<AbstractMesh>();
 
+        /**
+         * This Observable will be triggered for each stage of each renderingGroup of each rendered camera.
+         * The RenderinGroupInfo class contains all the information about the context in which the observable is called
+         * If you wish to register an Observer only for a given set of renderingGroup, use the mask with a combination of the renderingGroup index elevated to the power of two (1 for renderingGroup 0, 2 for renderingrOup1, 4 for 2 and 8 for 3)
+         */
+        public onRenderingGroupObservable = new Observable<RenderingGroupInfo>();
+
         // Animations
         public animations: Animation[] = [];
 
@@ -343,7 +400,15 @@
 
         public materials = new Array<Material>();
         public multiMaterials = new Array<MultiMaterial>();
-        public defaultMaterial = new StandardMaterial("default material", this);
+        private _defaultMaterial: StandardMaterial;
+
+        public get defaultMaterial(): StandardMaterial {
+            if (!this._defaultMaterial) {
+                this._defaultMaterial = new StandardMaterial("default material", this);
+            }
+
+            return this._defaultMaterial;
+        }
 
         // Textures
         public texturesEnabled = true;
@@ -359,6 +424,7 @@
 
         // Layers
         public layers = new Array<Layer>();
+        public highlightLayers = new Array<HighlightLayer>();
 
         // Skeletons
         public skeletonsEnabled = true;
@@ -402,7 +468,7 @@
          * @type {BABYLON.ActionManager}
         */
         public actionManager: ActionManager;
-     
+
         public _actionManagers = new Array<ActionManager>();
         private _meshesForIntersections = new SmartArray<AbstractMesh>(256);
 
@@ -423,20 +489,20 @@
         private _engine: Engine;
 
         // Performance counters
-        private _totalMeshesCounter           = new PerfCounter();
-        private _totalLightsCounter           = new PerfCounter();
-        private _totalMaterialsCounter        = new PerfCounter();
-        private _totalTexturesCounter         = new PerfCounter();
-        private _totalVertices                = new PerfCounter();
-        public  _activeIndices                = new PerfCounter();
-        public  _activeParticles              = new PerfCounter();
-        private _lastFrameDuration            = new PerfCounter();
+        private _totalMeshesCounter = new PerfCounter();
+        private _totalLightsCounter = new PerfCounter();
+        private _totalMaterialsCounter = new PerfCounter();
+        private _totalTexturesCounter = new PerfCounter();
+        private _totalVertices = new PerfCounter();
+        public _activeIndices = new PerfCounter();
+        public _activeParticles = new PerfCounter();
+        private _lastFrameDuration = new PerfCounter();
         private _evaluateActiveMeshesDuration = new PerfCounter();
-        private _renderTargetsDuration        = new PerfCounter();
-        public  _particlesDuration            = new PerfCounter();
-        private _renderDuration               = new PerfCounter();
-        public  _spritesDuration              = new PerfCounter();
-        public  _activeBones                  = new PerfCounter();
+        private _renderTargetsDuration = new PerfCounter();
+        public _particlesDuration = new PerfCounter();
+        private _renderDuration = new PerfCounter();
+        public _spritesDuration = new PerfCounter();
+        public _activeBones = new PerfCounter();
 
         private _animationRatio: number;
 
@@ -1179,13 +1245,14 @@
         /**
          * Will stop the animation of the given target
          * @param target - the target 
-         * @see beginAnimation 
+         * @param animationName - the name of the animation to stop (all animations will be stopped is empty)
+         * @see beginAnimation
          */
-        public stopAnimation(target: any): void {
+        public stopAnimation(target: any, animationName?: string): void {
             var animatable = this.getAnimatableByTarget(target);
 
             if (animatable) {
-                animatable.stop();
+                animatable.stop(animationName);
             }
         }
 
@@ -1914,7 +1981,7 @@
             this._particlesDuration.endMonitoring(false);
         }
 
-        private _activeMesh(sourceMesh:AbstractMesh, mesh: AbstractMesh): void {
+        private _activeMesh(sourceMesh: AbstractMesh, mesh: AbstractMesh): void {
             if (mesh.skeleton && this.skeletonsEnabled) {
                 if (this._activeSkeletons.pushNoDuplicate(mesh.skeleton)) {
                     mesh.skeleton.prepare();
@@ -2037,7 +2104,28 @@
 
             // Render
             Tools.StartPerformanceCounter("Main render");
+
+            // Activate HighlightLayer stencil
+            var stencilState = this._engine.getStencilBuffer();
+            var renderhighlights = false;
+            if (this.highlightLayers && this.highlightLayers.length > 0) {
+                for (let i = 0; i < this.highlightLayers.length; i++) {
+                    let highlightLayer = this.highlightLayers[i];
+                    if ((!highlightLayer.camera || camera == highlightLayer.camera) && highlightLayer.shouldRender()) {
+                        renderhighlights = true;
+                        this._engine.setStencilBuffer(true);
+                        break;
+                    }
+                }
+            }
+
             this._renderingManager.render(null, null, true, true);
+
+            // Restore HighlightLayer stencil
+            if (renderhighlights) {
+                this._engine.setStencilBuffer(stencilState);
+            }
+
             Tools.EndPerformanceCounter("Main render");
 
             // Bounding boxes
@@ -2068,6 +2156,17 @@
                     layer = this.layers[layerIndex];
                     if (!layer.isBackground) {
                         layer.render();
+                    }
+                }
+                engine.setDepthBuffer(true);
+            }
+
+            // Highlight Layer
+            if (renderhighlights) {
+                engine.setDepthBuffer(false);
+                for (let i = 0; i < this.highlightLayers.length; i++) {
+                    if (this.highlightLayers[i].shouldRender()) {
+                        this.highlightLayers[i].render();
                     }
                 }
                 engine.setDepthBuffer(true);
@@ -2255,6 +2354,15 @@
             // Depth renderer
             if (this._depthRenderer) {
                 this._renderTargets.push(this._depthRenderer.getDepthMap());
+            }
+
+            // HighlightLayer
+            if (this.highlightLayers && this.highlightLayers.length > 0) {
+                for (let i = 0; i < this.highlightLayers.length; i++) {
+                    if (this.highlightLayers[i].shouldRender()) {
+                        this._renderTargets.push((<any>this.highlightLayers[i])._mainTexture);
+                    }
+                }
             }
 
             // RenderPipeline
@@ -2534,6 +2642,9 @@
             // Release layers
             while (this.layers.length) {
                 this.layers[0].dispose();
+            }
+            while (this.highlightLayers.length) {
+                this.highlightLayers[0].dispose();
             }
 
             // Release textures
@@ -2935,7 +3046,7 @@
             opaqueSortCompareFn: (a: SubMesh, b: SubMesh) => number = null,
             alphaTestSortCompareFn: (a: SubMesh, b: SubMesh) => number = null,
             transparentSortCompareFn: (a: SubMesh, b: SubMesh) => number = null): void {
-            
+
             this._renderingManager.setRenderingOrder(renderingGroupId,
                 opaqueSortCompareFn,
                 alphaTestSortCompareFn,
@@ -2948,7 +3059,7 @@
          * @param renderingGroupId The rendering group id corresponding to its index
          * @param autoClearDepthStencil Automatically clears depth and stencil between groups if true.
          */
-        public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean): void {            
+        public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean): void {
             this._renderingManager.setRenderingAutoClearDepthStencil(renderingGroupId, autoClearDepthStencil);
         }
     }

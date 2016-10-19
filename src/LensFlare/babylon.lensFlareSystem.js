@@ -5,6 +5,7 @@ var BABYLON;
             this.name = name;
             this.lensFlares = new Array();
             this.borderLimit = 300;
+            this.viewportBorder = 0;
             this.layerMask = 0x0FFFFFFF;
             this._vertexBuffers = {};
             this._isEnabled = true;
@@ -61,11 +62,22 @@ var BABYLON;
             this._positionX = position.x;
             this._positionY = position.y;
             position = BABYLON.Vector3.TransformCoordinates(this.getEmitterPosition(), this._scene.getViewMatrix());
+            if (this.viewportBorder > 0) {
+                globalViewport.x -= this.viewportBorder;
+                globalViewport.y -= this.viewportBorder;
+                globalViewport.width += this.viewportBorder * 2;
+                globalViewport.height += this.viewportBorder * 2;
+                position.x += this.viewportBorder;
+                position.y += this.viewportBorder;
+                this._positionX += this.viewportBorder;
+                this._positionY += this.viewportBorder;
+            }
             if (position.z > 0) {
                 if ((this._positionX > globalViewport.x) && (this._positionX < globalViewport.x + globalViewport.width)) {
                     if ((this._positionY > globalViewport.y) && (this._positionY < globalViewport.y + globalViewport.height))
                         return true;
                 }
+                return true;
             }
             return false;
         };
@@ -74,10 +86,10 @@ var BABYLON;
                 return false;
             }
             var emitterPosition = this.getEmitterPosition();
-            var direction = emitterPosition.subtract(this._scene.activeCamera.position);
+            var direction = emitterPosition.subtract(this._scene.activeCamera.globalPosition);
             var distance = direction.length();
             direction.normalize();
-            var ray = new BABYLON.Ray(this._scene.activeCamera.position, direction);
+            var ray = new BABYLON.Ray(this._scene.activeCamera.globalPosition, direction);
             var pickInfo = this._scene.pickWithRay(ray, this.meshesSelectionPredicate, true);
             return !pickInfo.hit || pickInfo.distance > distance;
         };
@@ -117,6 +129,7 @@ var BABYLON;
                 awayY = 0;
             }
             var away = (awayX > awayY) ? awayX : awayY;
+            away -= this.viewportBorder;
             if (away > this.borderLimit) {
                 away = this.borderLimit;
             }
@@ -126,6 +139,14 @@ var BABYLON;
             }
             if (intensity > 1.0) {
                 intensity = 1.0;
+            }
+            if (this.viewportBorder > 0) {
+                globalViewport.x += this.viewportBorder;
+                globalViewport.y += this.viewportBorder;
+                globalViewport.width -= this.viewportBorder * 2;
+                globalViewport.height -= this.viewportBorder * 2;
+                this._positionX -= this.viewportBorder;
+                this._positionY -= this.viewportBorder;
             }
             // Position
             var centerX = globalViewport.x + globalViewport.width / 2;
@@ -209,6 +230,6 @@ var BABYLON;
             return serializationObject;
         };
         return LensFlareSystem;
-    })();
+    }());
     BABYLON.LensFlareSystem = LensFlareSystem;
 })(BABYLON || (BABYLON = {}));

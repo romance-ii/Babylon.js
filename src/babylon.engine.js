@@ -55,7 +55,7 @@ var BABYLON;
             mag: magFilter
         };
     };
-    var prepareWebGLTexture = function (texture, gl, scene, width, height, invertY, noMipmap, isCompressed, processFunction, onLoad, samplingMode) {
+    var prepareWebGLTexture = function (texture, gl, scene, width, height, invertY, noMipmap, isCompressed, processFunction, samplingMode) {
         if (samplingMode === void 0) { samplingMode = BABYLON.Texture.TRILINEAR_SAMPLINGMODE; }
         var engine = scene.getEngine();
         var potWidth = BABYLON.Tools.GetExponentOfTwo(width, engine.getCaps().maxTextureSize);
@@ -77,11 +77,13 @@ var BABYLON;
         engine._bindTextureDirectly(gl.TEXTURE_2D, null);
         engine.resetTextureCache();
         scene._removePendingData(texture);
-        if (onLoad) {
-            onLoad();
-        }
+        texture.onLoadedCallbacks.forEach(function (callback) {
+            callback();
+        });
+        texture.onLoadedCallbacks = [];
     };
-    var partialLoad = function (url, index, loadedImages, scene, onfinish) {
+    var partialLoad = function (url, index, loadedImages, scene, onfinish, onErrorCallBack) {
+        if (onErrorCallBack === void 0) { onErrorCallBack = null; }
         var img;
         var onload = function () {
             loadedImages[index] = img;
@@ -93,28 +95,32 @@ var BABYLON;
         };
         var onerror = function () {
             scene._removePendingData(img);
+            if (onErrorCallBack) {
+                onErrorCallBack();
+            }
         };
         img = BABYLON.Tools.LoadImage(url, onload, onerror, scene.database);
         scene._addPendingData(img);
     };
-    var cascadeLoad = function (rootUrl, scene, onfinish, files) {
+    var cascadeLoad = function (rootUrl, scene, onfinish, files, onError) {
+        if (onError === void 0) { onError = null; }
         var loadedImages = [];
         loadedImages._internalCount = 0;
         for (var index = 0; index < 6; index++) {
-            partialLoad(files[index], index, loadedImages, scene, onfinish);
+            partialLoad(files[index], index, loadedImages, scene, onfinish, onError);
         }
     };
     var InstancingAttributeInfo = (function () {
         function InstancingAttributeInfo() {
         }
         return InstancingAttributeInfo;
-    })();
+    }());
     BABYLON.InstancingAttributeInfo = InstancingAttributeInfo;
     var EngineCapabilities = (function () {
         function EngineCapabilities() {
         }
         return EngineCapabilities;
-    })();
+    }());
     BABYLON.EngineCapabilities = EngineCapabilities;
     /**
      * The engine class is responsible for interfacing with all lower-level APIs such as WebGL and Audio.
@@ -139,6 +145,7 @@ var BABYLON;
             this.scenes = new Array();
             this._windowIsBackground = false;
             this._webGLVersion = "1.0";
+            this._badOS = false;
             this._drawCalls = new BABYLON.PerfCounter();
             this._renderingQueueLaunched = false;
             this._activeRenderLoops = [];
@@ -163,6 +170,28 @@ var BABYLON;
             this._currentBufferPointers = [];
             this._currentInstanceLocations = new Array();
             this._currentInstanceBuffers = new Array();
+            this._onVRFullScreenTriggered = function () {
+                if (_this._vrDisplayEnabled && _this._vrDisplayEnabled.isPresenting) {
+                    //get the old size before we change
+                    _this._oldSize = new BABYLON.Size(_this.getRenderWidth(), _this.getRenderHeight());
+                    _this._oldHardwareScaleFactor = _this.getHardwareScalingLevel();
+                    //according to the WebVR specs, requestAnimationFrame should be triggered only once.
+                    //But actually, no browser follow the specs...
+                    //this._vrAnimationFrameHandler = this._vrDisplayEnabled.requestAnimationFrame(this._bindedRenderFunction);
+                    //get the width and height, change the render size
+                    var leftEye = _this._vrDisplayEnabled.getEyeParameters('left');
+                    var width, height;
+                    _this.setHardwareScalingLevel(1);
+                    _this.setSize(leftEye.renderWidth * 2, leftEye.renderHeight);
+                }
+                else {
+                    //When the specs are implemented, need to uncomment this.
+                    //this._vrDisplayEnabled.cancelAnimationFrame(this._vrAnimationFrameHandler);
+                    _this.setHardwareScalingLevel(_this._oldHardwareScaleFactor);
+                    _this.setSize(_this._oldSize.width, _this._oldSize.height);
+                    _this._vrDisplayEnabled = undefined;
+                }
+            };
             this._renderingCanvas = canvas;
             this._externalData = new BABYLON.StringDictionary();
             options = options || {};
@@ -298,8 +327,121 @@ var BABYLON;
             }
             //default loading screen
             this._loadingScreen = new BABYLON.DefaultLoadingScreen(this._renderingCanvas);
+            //Load WebVR Devices
+            if (options.autoEnableWebVR) {
+                this.initWebVR();
+            }
+            //Detect if we are running on a faulty buggy OS.
+            var regexp = /AppleWebKit.*10.[\d] Mobile/;
+            //ua sniffing is the tool of the devil.
+            this._badOS = regexp.test(navigator.userAgent);
             BABYLON.Tools.Log("Babylon.js engine (v" + Engine.Version + ") launched");
         }
+        Object.defineProperty(Engine, "NEVER", {
+            get: function () {
+                return Engine._NEVER;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "ALWAYS", {
+            get: function () {
+                return Engine._ALWAYS;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "LESS", {
+            get: function () {
+                return Engine._LESS;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "EQUAL", {
+            get: function () {
+                return Engine._EQUAL;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "LEQUAL", {
+            get: function () {
+                return Engine._LEQUAL;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "GREATER", {
+            get: function () {
+                return Engine._GREATER;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "GEQUAL", {
+            get: function () {
+                return Engine._GEQUAL;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "NOTEQUAL", {
+            get: function () {
+                return Engine._NOTEQUAL;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "KEEP", {
+            get: function () {
+                return Engine._KEEP;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "REPLACE", {
+            get: function () {
+                return Engine._REPLACE;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "INCR", {
+            get: function () {
+                return Engine._INCR;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "DECR", {
+            get: function () {
+                return Engine._DECR;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "INVERT", {
+            get: function () {
+                return Engine._INVERT;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "INCR_WRAP", {
+            get: function () {
+                return Engine._INCR_WRAP;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Engine, "DECR_WRAP", {
+            get: function () {
+                return Engine._DECR_WRAP;
+            },
+            enumerable: true,
+            configurable: true
+        });
         Object.defineProperty(Engine, "ALPHA_DISABLE", {
             get: function () {
                 return Engine._ALPHA_DISABLE;
@@ -435,7 +577,7 @@ var BABYLON;
         });
         Object.defineProperty(Engine, "Version", {
             get: function () {
-                return "2.5-alpha";
+                return "2.5.-beta";
             },
             enumerable: true,
             configurable: true
@@ -625,7 +767,7 @@ var BABYLON;
             }
             if (this._activeRenderLoops.length > 0) {
                 // Register new frame
-                BABYLON.Tools.QueueNewFrame(this._bindedRenderFunction);
+                BABYLON.Tools.QueueNewFrame(this._bindedRenderFunction, this._vrDisplayEnabled);
             }
             else {
                 this._renderingQueueLaunched = false;
@@ -655,13 +797,13 @@ var BABYLON;
          * @param {boolean} requestPointerLock - should a pointer lock be requested from the user
          * @param {any} options - an options object to be sent to the requestFullscreen function
          */
-        Engine.prototype.switchFullscreen = function (requestPointerLock, options) {
+        Engine.prototype.switchFullscreen = function (requestPointerLock) {
             if (this.isFullscreen) {
                 BABYLON.Tools.ExitFullscreen();
             }
             else {
                 this._pointerLockRequested = requestPointerLock;
-                BABYLON.Tools.RequestFullscreen(this._renderingCanvas, options);
+                BABYLON.Tools.RequestFullscreen(this._renderingCanvas);
             }
         };
         Engine.prototype.clear = function (color, backBuffer, depth, stencil) {
@@ -730,7 +872,14 @@ var BABYLON;
             this._measureFps();
         };
         Engine.prototype.endFrame = function () {
-            //this.flushFramebuffer();
+            //force a flush in case we are using a bad OS.
+            if (this._badOS) {
+                this.flushFramebuffer();
+            }
+            //submit frame to the vr device, if enabled
+            if (this._vrDisplayEnabled && this._vrDisplayEnabled.isPresenting) {
+                this._vrDisplayEnabled.submitFrame();
+            }
         };
         /**
          * resize the view according to the canvas' size.
@@ -764,6 +913,36 @@ var BABYLON;
                     var cam = scene.cameras[camIndex];
                     cam._currentRenderId = 0;
                 }
+            }
+        };
+        //WebVR functions
+        Engine.prototype.initWebVR = function () {
+            if (!this.vrDisplaysPromise) {
+                this._getVRDisplays();
+            }
+        };
+        Engine.prototype.enableVR = function (vrDevice) {
+            this._vrDisplayEnabled = vrDevice;
+            this._vrDisplayEnabled.requestPresent([{ source: this.getRenderingCanvas() }]).then(this._onVRFullScreenTriggered);
+        };
+        Engine.prototype.disableVR = function () {
+            if (this._vrDisplayEnabled) {
+                this._vrDisplayEnabled.exitPresent().then(this._onVRFullScreenTriggered);
+            }
+        };
+        Engine.prototype._getVRDisplays = function () {
+            var _this = this;
+            var getWebVRDevices = function (devices) {
+                var size = devices.length;
+                var i = 0;
+                _this._vrDisplays = devices.filter(function (device) {
+                    return devices[i] instanceof VRDisplay;
+                });
+                return _this._vrDisplays;
+            };
+            //using a key due to typescript
+            if (navigator.getVRDisplays) {
+                this.vrDisplaysPromise = navigator.getVRDisplays().then(getWebVRDevices);
             }
         };
         Engine.prototype.bindFramebuffer = function (texture, faceIndex, requiredWidth, requiredHeight) {
@@ -1191,12 +1370,12 @@ var BABYLON;
             return results;
         };
         Engine.prototype.enableEffect = function (effect) {
-            if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
-                if (effect && effect.onBind) {
-                    effect.onBind(effect);
-                }
-                return;
-            }
+            //if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
+            //    if (effect && effect.onBind) {
+            //        effect.onBind(effect);
+            //    }
+            //    return;
+            //}
             // Use program
             this.setProgram(effect.getProgram());
             this._currentEffect = effect;
@@ -1456,6 +1635,7 @@ var BABYLON;
             texture.noMipmap = noMipmap;
             texture.references = 1;
             texture.samplingMode = samplingMode;
+            texture.onLoadedCallbacks = [onLoad];
             this._loadedTexturesCache.push(texture);
             var onerror = function () {
                 scene._removePendingData(texture);
@@ -1470,7 +1650,7 @@ var BABYLON;
                     var header = BABYLON.Internals.TGATools.GetTGAHeader(data);
                     prepareWebGLTexture(texture, _this._gl, scene, header.width, header.height, invertY, noMipmap, false, function () {
                         BABYLON.Internals.TGATools.UploadContent(_this._gl, data);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
                 if (!(fromData instanceof Array))
                     BABYLON.Tools.LoadFile(url, function (arrayBuffer) {
@@ -1485,7 +1665,7 @@ var BABYLON;
                     var loadMipmap = (info.isRGB || info.isLuminance || info.mipmapCount > 1) && !noMipmap && ((info.width >> (info.mipmapCount - 1)) === 1);
                     prepareWebGLTexture(texture, _this._gl, scene, info.width, info.height, invertY, !loadMipmap, info.isFourCC, function () {
                         BABYLON.Internals.DDSTools.UploadDDSLevels(_this._gl, _this.getCaps().s3tc, data, info, loadMipmap, 1);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
                 if (!(fromData instanceof Array))
                     BABYLON.Tools.LoadFile(url, function (data) {
@@ -1519,7 +1699,7 @@ var BABYLON;
                             }
                         }
                         _this._gl.texImage2D(_this._gl.TEXTURE_2D, 0, _this._gl.RGBA, _this._gl.RGBA, _this._gl.UNSIGNED_BYTE, isPot ? img : _this._workingCanvas);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
                 if (!(fromData instanceof Array))
                     BABYLON.Tools.LoadImage(url, onload, onerror, scene.database);
@@ -1635,6 +1815,9 @@ var BABYLON;
                 this._gl.generateMipmap(this._gl.TEXTURE_2D);
             }
             this._bindTextureDirectly(this._gl.TEXTURE_2D, null);
+            if (premulAlpha) {
+                this._gl.pixelStorei(this._gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+            }
             this.resetTextureCache();
             texture.isReady = true;
         };
@@ -1842,13 +2025,16 @@ var BABYLON;
             this._loadedTexturesCache.push(texture);
             return texture;
         };
-        Engine.prototype.createCubeTexture = function (rootUrl, scene, files, noMipmap) {
+        Engine.prototype.createCubeTexture = function (rootUrl, scene, files, noMipmap, onLoad, onError) {
             var _this = this;
+            if (onLoad === void 0) { onLoad = null; }
+            if (onError === void 0) { onError = null; }
             var gl = this._gl;
             var texture = gl.createTexture();
             texture.isCube = true;
             texture.url = rootUrl;
             texture.references = 1;
+            texture.onLoadedCallbacks = [];
             var extension = rootUrl.substr(rootUrl.length - 4, 4).toLowerCase();
             var isDDS = this.getCaps().s3tc && (extension === ".dds");
             if (isDDS) {
@@ -1870,7 +2056,7 @@ var BABYLON;
                     texture._width = info.width;
                     texture._height = info.height;
                     texture.isReady = true;
-                }, null, null, true);
+                }, null, null, true, onError);
             }
             else {
                 cascadeLoad(rootUrl, scene, function (imgs) {
@@ -1901,7 +2087,13 @@ var BABYLON;
                     texture._width = width;
                     texture._height = height;
                     texture.isReady = true;
-                }, files);
+                    texture.onLoadedCallbacks.forEach(function (callback) {
+                        callback();
+                    });
+                    if (onLoad) {
+                        onLoad();
+                    }
+                }, files, onError);
             }
             this._loadedTexturesCache.push(texture);
             return texture;
@@ -2254,6 +2446,15 @@ var BABYLON;
                 this._releaseTexture(texture);
             }
         };
+        Engine.prototype.unbindAllAttributes = function () {
+            for (var i = 0, ul = this._vertexAttribArraysEnabled.length; i < ul; i++) {
+                if (i >= this._caps.maxVertexAttribs || !this._vertexAttribArraysEnabled[i]) {
+                    continue;
+                }
+                this._gl.disableVertexAttribArray(i);
+                this._vertexAttribArraysEnabled[i] = false;
+            }
+        };
         // Dispose
         Engine.prototype.dispose = function () {
             this.hideLoadingUI();
@@ -2269,13 +2470,10 @@ var BABYLON;
                 this._gl.deleteProgram(this._compiledEffects[name]._program);
             }
             // Unbind
-            for (var i = 0, ul = this._vertexAttribArraysEnabled.length; i < ul; i++) {
-                if (i >= this._caps.maxVertexAttribs || !this._vertexAttribArraysEnabled[i]) {
-                    continue;
-                }
-                this._gl.disableVertexAttribArray(i);
-            }
+            this.unbindAllAttributes();
             this._gl = null;
+            //WebVR
+            this.disableVR();
             // Events
             window.removeEventListener("blur", this._onBlur);
             window.removeEventListener("focus", this._onFocus);
@@ -2471,11 +2669,28 @@ var BABYLON;
         Engine._TEXTURETYPE_UNSIGNED_INT = 0;
         Engine._TEXTURETYPE_FLOAT = 1;
         Engine._TEXTURETYPE_HALF_FLOAT = 2;
+        // Depht or Stencil test Constants.
+        Engine._NEVER = 0x0200; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will never pass. i.e. Nothing will be drawn.
+        Engine._ALWAYS = 0x0207; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will always pass. i.e. Pixels will be drawn in the order they are drawn.
+        Engine._LESS = 0x0201; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is less than the stored value.
+        Engine._EQUAL = 0x0202; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is equals to the stored value.
+        Engine._LEQUAL = 0x0203; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is less than or equal to the stored value.
+        Engine._GREATER = 0x0204; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is greater than the stored value.
+        Engine._GEQUAL = 0x0206; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is greater than or equal to the stored value.
+        Engine._NOTEQUAL = 0x0205; //  Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is not equal to the stored value.
+        // Stencil Actions Constants.
+        Engine._KEEP = 0x1E00;
+        Engine._REPLACE = 0x1E01;
+        Engine._INCR = 0x1E02;
+        Engine._DECR = 0x1E03;
+        Engine._INVERT = 0x150A;
+        Engine._INCR_WRAP = 0x8507;
+        Engine._DECR_WRAP = 0x8508;
         // Updatable statics so stick with vars here
         Engine.CollisionsEpsilon = 0.001;
         Engine.CodeRepository = "src/";
         Engine.ShadersRepository = "src/Shaders/";
         return Engine;
-    })();
+    }());
     BABYLON.Engine = Engine;
 })(BABYLON || (BABYLON = {}));

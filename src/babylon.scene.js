@@ -49,7 +49,7 @@ var BABYLON;
         PointerEventTypes._POINTERWHEEL = 0x08;
         PointerEventTypes._POINTERPICK = 0x10;
         return PointerEventTypes;
-    })();
+    }());
     BABYLON.PointerEventTypes = PointerEventTypes;
     var PointerInfoBase = (function () {
         function PointerInfoBase(type, event) {
@@ -57,7 +57,7 @@ var BABYLON;
             this.event = event;
         }
         return PointerInfoBase;
-    })();
+    }());
     BABYLON.PointerInfoBase = PointerInfoBase;
     /**
      * This class is used to store pointer related info for the onPrePointerObservable event.
@@ -71,7 +71,7 @@ var BABYLON;
             this.localPosition = new BABYLON.Vector2(localX, localY);
         }
         return PointerInfoPre;
-    })(PointerInfoBase);
+    }(PointerInfoBase));
     BABYLON.PointerInfoPre = PointerInfoPre;
     /**
      * This type contains all the data related to a pointer event in Babylon.js.
@@ -84,8 +84,37 @@ var BABYLON;
             this.pickInfo = pickInfo;
         }
         return PointerInfo;
-    })(PointerInfoBase);
+    }(PointerInfoBase));
     BABYLON.PointerInfo = PointerInfo;
+    /**
+     * This class is used by the onRenderingGroupObservable
+     */
+    var RenderingGroupInfo = (function () {
+        function RenderingGroupInfo() {
+        }
+        /**
+         * Stage corresponding to the very first hook in the renderingGroup phase: before the render buffer may be cleared
+         * This stage will be fired no matter what
+         */
+        RenderingGroupInfo.STAGE_PRECLEAR = 1;
+        /**
+         * Called before opaque object are rendered.
+         * This stage will be fired only if there's 3D Opaque content to render
+         */
+        RenderingGroupInfo.STAGE_PREOPAQUE = 2;
+        /**
+         * Called after the opaque objects are rendered and before the transparent ones
+         * This stage will be fired only if there's 3D transparent content to render
+         */
+        RenderingGroupInfo.STAGE_PRETRANSPARENT = 3;
+        /**
+         * Called after the transparent object are rendered, last hook of the renderingGroup phase
+         * This stage will be fired no matter what
+         */
+        RenderingGroupInfo.STAGE_POSTTRANSPARENT = 4;
+        return RenderingGroupInfo;
+    }());
+    BABYLON.RenderingGroupInfo = RenderingGroupInfo;
     /**
      * Represents a scene to be rendered by the engine.
      * @see http://doc.babylonjs.com/page.php?p=21911
@@ -105,6 +134,7 @@ var BABYLON;
             this.forceShowBoundingBoxes = false;
             this.animationsEnabled = true;
             this.constantlyUpdateMeshUnderPointer = false;
+            this.useRightHandedSystem = false;
             this.hoverCursor = "pointer";
             // Events
             /**
@@ -177,6 +207,12 @@ var BABYLON;
             * @type {BABYLON.Observable}
             */
             this.onMeshRemovedObservable = new BABYLON.Observable();
+            /**
+             * This Observable will be triggered for each stage of each renderingGroup of each rendered camera.
+             * The RenderinGroupInfo class contains all the information about the context in which the observable is called
+             * If you wish to register an Observer only for a given set of renderingGroup, use the mask with a combination of the renderingGroup index elevated to the power of two (1 for renderingGroup 0, 2 for renderingrOup1, 4 for 2 and 8 for 3)
+             */
+            this.onRenderingGroupObservable = new BABYLON.Observable();
             // Animations
             this.animations = [];
             /**
@@ -238,7 +274,6 @@ var BABYLON;
             this._geometries = new Array();
             this.materials = new Array();
             this.multiMaterials = new Array();
-            this.defaultMaterial = new BABYLON.StandardMaterial("default material", this);
             // Textures
             this.texturesEnabled = true;
             this.textures = new Array();
@@ -250,6 +285,7 @@ var BABYLON;
             this.spriteManagers = new Array();
             // Layers
             this.layers = new Array();
+            this.highlightLayers = new Array();
             // Skeletons
             this.skeletonsEnabled = true;
             this.skeletons = new Array();
@@ -409,6 +445,16 @@ var BABYLON;
         Object.defineProperty(Scene.prototype, "unTranslatedPointer", {
             get: function () {
                 return new BABYLON.Vector2(this._unTranslatedPointerX, this._unTranslatedPointerY);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Scene.prototype, "defaultMaterial", {
+            get: function () {
+                if (!this._defaultMaterial) {
+                    this._defaultMaterial = new BABYLON.StandardMaterial("default material", this);
+                }
+                return this._defaultMaterial;
             },
             enumerable: true,
             configurable: true
@@ -1011,12 +1057,13 @@ var BABYLON;
         /**
          * Will stop the animation of the given target
          * @param target - the target
+         * @param animationName - the name of the animation to stop (all animations will be stopped is empty)
          * @see beginAnimation
          */
-        Scene.prototype.stopAnimation = function (target) {
+        Scene.prototype.stopAnimation = function (target, animationName) {
             var animatable = this.getAnimatableByTarget(target);
             if (animatable) {
-                animatable.stop();
+                animatable.stop(animationName);
             }
         };
         Scene.prototype._animate = function () {
@@ -1717,7 +1764,24 @@ var BABYLON;
             }
             // Render
             BABYLON.Tools.StartPerformanceCounter("Main render");
+            // Activate HighlightLayer stencil
+            var stencilState = this._engine.getStencilBuffer();
+            var renderhighlights = false;
+            if (this.highlightLayers && this.highlightLayers.length > 0) {
+                for (var i = 0; i < this.highlightLayers.length; i++) {
+                    var highlightLayer = this.highlightLayers[i];
+                    if ((!highlightLayer.camera || camera == highlightLayer.camera) && highlightLayer.shouldRender()) {
+                        renderhighlights = true;
+                        this._engine.setStencilBuffer(true);
+                        break;
+                    }
+                }
+            }
             this._renderingManager.render(null, null, true, true);
+            // Restore HighlightLayer stencil
+            if (renderhighlights) {
+                this._engine.setStencilBuffer(stencilState);
+            }
             BABYLON.Tools.EndPerformanceCounter("Main render");
             // Bounding boxes
             this._boundingBoxRenderer.render();
@@ -1743,6 +1807,16 @@ var BABYLON;
                     layer = this.layers[layerIndex];
                     if (!layer.isBackground) {
                         layer.render();
+                    }
+                }
+                engine.setDepthBuffer(true);
+            }
+            // Highlight Layer
+            if (renderhighlights) {
+                engine.setDepthBuffer(false);
+                for (var i = 0; i < this.highlightLayers.length; i++) {
+                    if (this.highlightLayers[i].shouldRender()) {
+                        this.highlightLayers[i].render();
                     }
                 }
                 engine.setDepthBuffer(true);
@@ -1895,6 +1969,14 @@ var BABYLON;
             // Depth renderer
             if (this._depthRenderer) {
                 this._renderTargets.push(this._depthRenderer.getDepthMap());
+            }
+            // HighlightLayer
+            if (this.highlightLayers && this.highlightLayers.length > 0) {
+                for (var i = 0; i < this.highlightLayers.length; i++) {
+                    if (this.highlightLayers[i].shouldRender()) {
+                        this._renderTargets.push(this.highlightLayers[i]._mainTexture);
+                    }
+                }
             }
             // RenderPipeline
             this.postProcessRenderPipelineManager.update();
@@ -2134,6 +2216,9 @@ var BABYLON;
             // Release layers
             while (this.layers.length) {
                 this.layers[0].dispose();
+            }
+            while (this.highlightLayers.length) {
+                this.highlightLayers[0].dispose();
             }
             // Release textures
             while (this.textures.length) {
@@ -2476,6 +2561,6 @@ var BABYLON;
         Scene.MinDeltaTime = 1.0;
         Scene.MaxDeltaTime = 1000.0;
         return Scene;
-    })();
+    }());
     BABYLON.Scene = Scene;
 })(BABYLON || (BABYLON = {}));

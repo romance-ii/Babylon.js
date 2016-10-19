@@ -34,7 +34,11 @@
             if (this.parent && this.parent.getWorldMatrix) {
                 this.computeTransformedPosition();
 
-                effect.setFloat4(positionUniformName, this.transformedPosition.x, this.transformedPosition.y, this.transformedPosition.z, 0);
+                effect.setFloat4(positionUniformName,
+                    this.transformedPosition.x,
+                    this.transformedPosition.y,
+                    this.transformedPosition.z,
+                    0); 
 
                 return;
             }

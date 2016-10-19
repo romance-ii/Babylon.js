@@ -737,7 +737,6 @@
     export class Vector3 {
 
         constructor(public x: number, public y: number, public z: number) {
-
         }
 
         public toString(): string {
@@ -757,7 +756,7 @@
 
         // Operators
         public asArray(): number[] {
-            var result = [];
+            var result: number[] = [];
 
             this.toArray(result, 0);
 
@@ -1383,7 +1382,7 @@
         constructor(public x: number, public y: number, public z: number, public w: number) { }
 
         public toString(): string {
-            return "{X: " + this.x + " Y:" + this.y + " Z:" + this.z + "W:" + this.w + "}";
+            return "{X: " + this.x + " Y:" + this.y + " Z:" + this.z + " W:" + this.w + "}";
         }
 
         public getClassName(): string {
@@ -1731,7 +1730,7 @@
         }
 
         public copyFrom(src: Size) {
-            this.width  = src.width;
+            this.width = src.width;
             this.height = src.height;
         }
 
@@ -1910,40 +1909,28 @@
         }
 
         public toEulerAnglesToRef(result: Vector3, order = "YZX"): Quaternion {
-            var heading: number, attitude: number, bank: number;
-            var x = this.x, y = this.y, z = this.z, w = this.w;
+            
+            var qx = this.x;
+            var qy = this.y;
+            var qz = this.z;
+            var qw = this.w;
+            var xsqr = qx * qx;
 
-            switch (order) {
-                case "YZX":
-                    var test = x * y + z * w;
-                    if (test > 0.499) { // singularity at north pole
-                        heading = 2 * Math.atan2(x, w);
-                        attitude = Math.PI / 2;
-                        bank = 0;
-                    }
-                    if (test < -0.499) { // singularity at south pole
-                        heading = -2 * Math.atan2(x, w);
-                        attitude = - Math.PI / 2;
-                        bank = 0;
-                    }
-                    if (isNaN(heading)) {
-                        var sqx = x * x;
-                        var sqy = y * y;
-                        var sqz = z * z;
-                        heading = Math.atan2(2 * y * w - 2 * x * z, 1 - 2 * sqy - 2 * sqz); // Heading
-                        attitude = Math.asin(2 * test); // attitude
-                        bank = Math.atan2(2 * x * w - 2 * y * z, 1 - 2 * sqx - 2 * sqz); // bank
-                    }
-                    break;
-                default:
-                    throw new Error("Euler order " + order + " not supported yet.");
-            }
+            var t0 = -2.0 * (xsqr + qy * qy) + 1.0;
+            var t1 = 2.0 * (qz * qx + qw * qy);
+            var t2 = -2.0 * (qz * qy - qw * qx);
+            var t3 = 2.0 * (qx * qy + qw * qz);
+            var t4 = -2.0 * (qz * qz + xsqr) + 1.0;
 
-            result.y = heading;
-            result.z = attitude;
-            result.x = bank;
+            t2 = t2 > 1.0 ? 1.0 : t2;
+            t2 = t2 < -1.0 ? -1.0 : t2;
+
+            result.x = Math.asin(t2);
+            result.z = Math.atan2(t3, t4);
+            result.y = Math.atan2(t1, t0);
 
             return this;
+            
         };
 
         public toRotationMatrix(result: Matrix): Quaternion {
@@ -2427,13 +2414,13 @@
                 return false;
             }
 
-            var rotationMatrix = Matrix.FromValues(
+            Matrix.FromValuesToRef(
                 this.m[0] / scale.x, this.m[1] / scale.x, this.m[2] / scale.x, 0,
                 this.m[4] / scale.y, this.m[5] / scale.y, this.m[6] / scale.y, 0,
                 this.m[8] / scale.z, this.m[9] / scale.z, this.m[10] / scale.z, 0,
-                0, 0, 0, 1);
+                0, 0, 0, 1, Tmp.Matrix[0]);
 
-            Quaternion.FromRotationMatrixToRef(rotationMatrix, rotation);
+            Quaternion.FromRotationMatrixToRef(Tmp.Matrix[0], rotation);
 
             return true;
         }
@@ -2828,6 +2815,43 @@
                 ex, ey, ez, 1, result);
         }
 
+        public static LookAtRH(eye: Vector3, target: Vector3, up: Vector3): Matrix {
+            var result = Matrix.Zero();
+
+            Matrix.LookAtRHToRef(eye, target, up, result);
+
+            return result;
+        }
+
+        public static LookAtRHToRef(eye: Vector3, target: Vector3, up: Vector3, result: Matrix): void {
+            // Z axis
+            eye.subtractToRef(target, this._zAxis);
+            this._zAxis.normalize();
+
+            // X axis
+            Vector3.CrossToRef(up, this._zAxis, this._xAxis);
+
+            if (this._xAxis.lengthSquared() === 0) {
+                this._xAxis.x = 1.0;
+            } else {
+                this._xAxis.normalize();
+            }
+
+            // Y axis
+            Vector3.CrossToRef(this._zAxis, this._xAxis, this._yAxis);
+            this._yAxis.normalize();
+
+            // Eye angles
+            var ex = -Vector3.Dot(this._xAxis, eye);
+            var ey = -Vector3.Dot(this._yAxis, eye);
+            var ez = -Vector3.Dot(this._zAxis, eye);
+
+            return Matrix.FromValuesToRef(this._xAxis.x, this._yAxis.x, this._zAxis.x, 0,
+                this._xAxis.y, this._yAxis.y, this._zAxis.y, 0,
+                this._xAxis.z, this._yAxis.z, this._zAxis.z, 0,
+                ex, ey, ez, 1, result);
+        }
+
         public static OrthoLH(width: number, height: number, znear: number, zfar: number): Matrix {
             var matrix = Matrix.Zero();
 
@@ -2861,12 +2885,25 @@
             result.m[1] = result.m[2] = result.m[3] = 0;
             result.m[5] = 2.0 / (top - bottom);
             result.m[4] = result.m[6] = result.m[7] = 0;
-            result.m[10] = -1.0 / (znear - zfar);
+            result.m[10] = 1.0 / (zfar - znear);
             result.m[8] = result.m[9] = result.m[11] = 0;
             result.m[12] = (left + right) / (left - right);
             result.m[13] = (top + bottom) / (bottom - top);
-            result.m[14] = znear / (znear - zfar);
+            result.m[14] = -znear / (zfar - znear);
             result.m[15] = 1.0;
+        }
+
+        public static OrthoOffCenterRH(left: number, right: number, bottom: number, top: number, znear: number, zfar: number): Matrix {
+            var matrix = Matrix.Zero();
+
+            Matrix.OrthoOffCenterRHToRef(left, right, bottom, top, znear, zfar, matrix);
+
+            return matrix;
+        }
+
+        public static OrthoOffCenterRHToRef(left: number, right, bottom: number, top: number, znear: number, zfar: number, result: Matrix): void {
+            Matrix.OrthoOffCenterLHToRef(left, right, bottom, top, znear, zfar, result);
+            result.m[10] *= -1.0;
         }
 
         public static PerspectiveLH(width: number, height: number, znear: number, zfar: number): Matrix {
@@ -2914,9 +2951,65 @@
 
             result.m[4] = result.m[6] = result.m[7] = 0.0;
             result.m[8] = result.m[9] = 0.0;
+            result.m[10] = zfar / (zfar - znear);
+            result.m[11] = 1.0;
+            result.m[12] = result.m[13] = result.m[15] = 0.0;
+            result.m[14] = -(znear * zfar) / (zfar - znear);
+        }
+
+        public static PerspectiveFovRH(fov: number, aspect: number, znear: number, zfar: number): Matrix {
+            var matrix = Matrix.Zero();
+
+            Matrix.PerspectiveFovRHToRef(fov, aspect, znear, zfar, matrix);
+
+            return matrix;
+        }
+
+        public static PerspectiveFovRHToRef(fov: number, aspect: number, znear: number, zfar: number, result: Matrix, isVerticalFovFixed = true): void {
+            var tan = 1.0 / (Math.tan(fov * 0.5));
+
+            if (isVerticalFovFixed) {
+                result.m[0] = tan / aspect;
+            }
+            else {
+                result.m[0] = tan;
+            }
+
+            result.m[1] = result.m[2] = result.m[3] = 0.0;
+
+            if (isVerticalFovFixed) {
+                result.m[5] = tan;
+            }
+            else {
+                result.m[5] = tan * aspect;
+            }
+
+            result.m[4] = result.m[6] = result.m[7] = 0.0;
+            result.m[8] = result.m[9] = 0.0;
+            result.m[10] = zfar / (znear - zfar);
+            result.m[11] = -1.0;
+            result.m[12] = result.m[13] = result.m[15] = 0.0;
+            result.m[14] = (znear * zfar) / (znear - zfar);
+        }
+
+        public static PerspectiveFovWebVRToRef(fov, znear: number, zfar: number, result: Matrix, isVerticalFovFixed = true): void {
+            var upTan = Math.tan(fov.upDegrees * Math.PI / 180.0);
+            var downTan = Math.tan(fov.downDegrees * Math.PI / 180.0);
+            var leftTan = Math.tan(fov.leftDegrees * Math.PI / 180.0);
+            var rightTan = Math.tan(fov.rightDegrees * Math.PI / 180.0);
+            var xScale = 2.0 / (leftTan + rightTan);
+            var yScale = 2.0 / (upTan + downTan);
+            result.m[0] = xScale;
+            result.m[1] = result.m[2] = result.m[3] = result.m[4] = 0.0;
+            result.m[5] = yScale;
+            result.m[6] = result.m[7] =  0.0;
+            result.m[8] = ((leftTan - rightTan) * xScale * 0.5);
+            result.m[9] = -((upTan - downTan) * yScale * 0.5);
+            //result.m[10] = -(znear + zfar) / (zfar - znear);
             result.m[10] = -zfar / (znear - zfar);
             result.m[11] = 1.0;
             result.m[12] = result.m[13] = result.m[15] = 0.0;
+            //result.m[14] = -(2.0 * zfar * znear) / (zfar - znear);
             result.m[14] = (znear * zfar) / (znear - zfar);
         }
 

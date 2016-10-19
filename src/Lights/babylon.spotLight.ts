@@ -81,14 +81,28 @@
                 
                 Vector3.TransformNormalToRef(this.direction, this.parent.getWorldMatrix(), this._transformedDirection);
 
-                effect.setFloat4(positionUniformName, this.transformedPosition.x, this.transformedPosition.y, this.transformedPosition.z, this.exponent);
+                effect.setFloat4(positionUniformName,
+                    this.transformedPosition.x,
+                    this.transformedPosition.y,
+                    this.transformedPosition.z,
+                    this.exponent);
+
                 normalizeDirection = Vector3.Normalize(this._transformedDirection);
             } else {
-                effect.setFloat4(positionUniformName, this.position.x, this.position.y, this.position.z, this.exponent);
+                effect.setFloat4(positionUniformName,
+                    this.position.x,
+                    this.position.y,
+                    this.position.z,
+                    this.exponent);                    
+
                 normalizeDirection = Vector3.Normalize(this.direction);
             }
 
-            effect.setFloat4(directionUniformName, normalizeDirection.x, normalizeDirection.y, normalizeDirection.z, Math.cos(this.angle * 0.5));
+            effect.setFloat4(directionUniformName,
+                normalizeDirection.x,
+                normalizeDirection.y,
+                normalizeDirection.z,
+                Math.cos(this.angle * 0.5));
         }
 
         public _getWorldMatrix(): Matrix {

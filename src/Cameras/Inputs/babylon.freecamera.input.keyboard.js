@@ -84,6 +84,9 @@ var BABYLON;
                     else if (this.keysDown.indexOf(keyCode) !== -1) {
                         camera._localDirection.copyFromFloats(0, 0, -speed);
                     }
+                    if (camera.getScene().useRightHandedSystem) {
+                        camera._localDirection.z *= -1;
+                    }
                     camera.getViewMatrix().invertToRef(camera._cameraTransformMatrix);
                     BABYLON.Vector3.TransformNormalToRef(camera._localDirection, camera._cameraTransformMatrix, camera._transformedDirection);
                     camera.cameraDirection.addInPlace(camera._transformedDirection);
@@ -112,7 +115,7 @@ var BABYLON;
             BABYLON.serialize()
         ], FreeCameraKeyboardMoveInput.prototype, "keysRight", void 0);
         return FreeCameraKeyboardMoveInput;
-    })();
+    }());
     BABYLON.FreeCameraKeyboardMoveInput = FreeCameraKeyboardMoveInput;
     BABYLON.CameraInputTypes["FreeCameraKeyboardMoveInput"] = FreeCameraKeyboardMoveInput;
 })(BABYLON || (BABYLON = {}));

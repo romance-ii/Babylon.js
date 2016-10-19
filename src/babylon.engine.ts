@@ -58,7 +58,7 @@
     }
 
     var prepareWebGLTexture = (texture: WebGLTexture, gl: WebGLRenderingContext, scene: Scene, width: number, height: number, invertY: boolean, noMipmap: boolean, isCompressed: boolean,
-        processFunction: (width: number, height: number) => void, onLoad: () => void, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE) => {
+        processFunction: (width: number, height: number) => void, samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE) => {
         var engine = scene.getEngine();
         var potWidth = Tools.GetExponentOfTwo(width, engine.getCaps().maxTextureSize);
         var potHeight = Tools.GetExponentOfTwo(height, engine.getCaps().maxTextureSize);
@@ -88,13 +88,14 @@
         engine.resetTextureCache();
         scene._removePendingData(texture);
 
-        if (onLoad) {
-            onLoad();
-        }
+        texture.onLoadedCallbacks.forEach(callback => {
+            callback();
+        });
+        texture.onLoadedCallbacks = [];
     };
 
     var partialLoad = (url: string, index: number, loadedImages: any, scene,
-        onfinish: (images: HTMLImageElement[]) => void) => {
+        onfinish: (images: HTMLImageElement[]) => void, onErrorCallBack: () => void = null) => {
 
         var img: HTMLImageElement;
 
@@ -111,6 +112,10 @@
 
         var onerror = () => {
             scene._removePendingData(img);
+
+            if (onErrorCallBack) {
+                onErrorCallBack();
+            }
         };
 
         img = Tools.LoadImage(url, onload, onerror, scene.database);
@@ -118,13 +123,13 @@
     }
 
     var cascadeLoad = (rootUrl: string, scene,
-        onfinish: (images: HTMLImageElement[]) => void, files: string[]) => {
+        onfinish: (images: HTMLImageElement[]) => void, files: string[], onError: () => void = null) => {
 
         var loadedImages: any = [];
         loadedImages._internalCount = 0;
 
         for (var index = 0; index < 6; index++) {
-            partialLoad(files[index], index, loadedImages, scene, onfinish);
+            partialLoad(files[index], index, loadedImages, scene, onfinish, onError);
         }
     };
 
@@ -184,9 +189,10 @@
         public textureLOD: boolean;
         public drawBuffersExtension;
     }
-    
-    export interface EngineOptions extends WebGLContextAttributes{
+
+    export interface EngineOptions extends WebGLContextAttributes {
         limitDeviceRatio?: number;
+        autoEnableWebVR?: boolean;
     }
 
     /**
@@ -216,6 +222,85 @@
         private static _TEXTURETYPE_UNSIGNED_INT = 0;
         private static _TEXTURETYPE_FLOAT = 1;
         private static _TEXTURETYPE_HALF_FLOAT = 2;
+
+        // Depht or Stencil test Constants.
+        private static _NEVER = 0x0200; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will never pass. i.e. Nothing will be drawn.
+        private static _ALWAYS = 0x0207; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will always pass. i.e. Pixels will be drawn in the order they are drawn.
+        private static _LESS = 0x0201; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is less than the stored value.
+        private static _EQUAL = 0x0202; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is equals to the stored value.
+        private static _LEQUAL = 0x0203; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is less than or equal to the stored value.
+        private static _GREATER = 0x0204; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is greater than the stored value.
+        private static _GEQUAL = 0x0206; //	Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is greater than or equal to the stored value.
+        private static _NOTEQUAL = 0x0205; //  Passed to depthFunction or stencilFunction to specify depth or stencil tests will pass if the new depth value is not equal to the stored value.
+
+        public static get NEVER(): number {
+            return Engine._NEVER;
+        }
+
+        public static get ALWAYS(): number {
+            return Engine._ALWAYS;
+        }
+
+        public static get LESS(): number {
+            return Engine._LESS;
+        }
+
+        public static get EQUAL(): number {
+            return Engine._EQUAL;
+        }
+
+        public static get LEQUAL(): number {
+            return Engine._LEQUAL;
+        }
+
+        public static get GREATER(): number {
+            return Engine._GREATER;
+        }
+
+        public static get GEQUAL(): number {
+            return Engine._GEQUAL;
+        }
+
+        public static get NOTEQUAL(): number {
+            return Engine._NOTEQUAL;
+        }
+
+        // Stencil Actions Constants.
+        private static _KEEP = 0x1E00;
+        private static _REPLACE = 0x1E01;
+        private static _INCR = 0x1E02;
+        private static _DECR = 0x1E03;
+        private static _INVERT = 0x150A;
+        private static _INCR_WRAP = 0x8507;
+        private static _DECR_WRAP = 0x8508;
+
+        public static get KEEP(): number {
+            return Engine._KEEP;
+        }
+
+        public static get REPLACE(): number {
+            return Engine._REPLACE;
+        }
+
+        public static get INCR(): number {
+            return Engine._INCR;
+        }
+
+        public static get DECR(): number {
+            return Engine._DECR;
+        }
+
+        public static get INVERT(): number {
+            return Engine._INVERT;
+        }
+
+        public static get INCR_WRAP(): number {
+            return Engine._INCR_WRAP;
+        }
+
+        public static get DECR_WRAP(): number {
+            return Engine._DECR_WRAP;
+        }
 
         public static get ALPHA_DISABLE(): number {
             return Engine._ALPHA_DISABLE;
@@ -294,7 +379,7 @@
         }
 
         public static get Version(): string {
-            return "2.5-alpha";
+            return "2.5.-beta";
         }
 
         // Updatable statics so stick with vars here
@@ -311,11 +396,25 @@
         public enableOfflineSupport = true;
         public scenes = new Array<Scene>();
 
+        //WebVR 
+
+        //The new WebVR uses promises.
+        //this promise resolves with the current devices available.
+        public vrDisplaysPromise;
+
+        private _vrDisplays;
+        private _vrDisplayEnabled;
+        private _oldSize: BABYLON.Size;
+        private _oldHardwareScaleFactor: number;
+        private _vrAnimationFrameHandler: number;
+
         // Private Members
         public _gl: WebGLRenderingContext;
         private _renderingCanvas: HTMLCanvasElement;
         private _windowIsBackground = false;
         private _webGLVersion = "1.0";
+
+        private _badOS = false;
 
         public static audioEngine: AudioEngine;
 
@@ -328,7 +427,7 @@
         private _caps: EngineCapabilities;
         private _pointerLockRequested: boolean;
         private _alphaTest: boolean;
-        private _isStencilEnable: boolean; 
+        private _isStencilEnable: boolean;
 
         private _loadingScreen: ILoadingScreen;
 
@@ -382,7 +481,7 @@
 
         private _externalData: StringDictionary<Object>;
         private _bindedRenderFunction: any;
-        
+
         /**
          * @constructor
          * @param {HTMLCanvasElement} canvas - the canvas to be used for rendering
@@ -396,7 +495,7 @@
 
             options = options || {};
 
-            if(antialias != null){
+            if (antialias != null) {
                 options.antialias = antialias;
             }
 
@@ -552,6 +651,16 @@
             //default loading screen
             this._loadingScreen = new DefaultLoadingScreen(this._renderingCanvas);
 
+            //Load WebVR Devices
+            if (options.autoEnableWebVR) {
+                this.initWebVR();
+            }
+
+            //Detect if we are running on a faulty buggy OS.
+            var regexp = /AppleWebKit.*10.[\d] Mobile/
+            //ua sniffing is the tool of the devil.
+            this._badOS = regexp.test(navigator.userAgent);
+
             Tools.Log("Babylon.js engine (v" + Engine.Version + ") launched");
         }
 
@@ -698,11 +807,11 @@
         public setStencilFunction(stencilFunc: number) {
             this._stencilState.stencilFunc = stencilFunc;
         }
-        
+
         public setStencilFunctionReference(reference: number) {
             this._stencilState.stencilFuncRef = reference;
         }
-        
+
         public setStencilFunctionMask(mask: number) {
             this._stencilState.stencilFuncMask = mask;
         }
@@ -770,7 +879,7 @@
 
             if (this._activeRenderLoops.length > 0) {
                 // Register new frame
-                Tools.QueueNewFrame(this._bindedRenderFunction);
+                Tools.QueueNewFrame(this._bindedRenderFunction, this._vrDisplayEnabled);
             } else {
                 this._renderingQueueLaunched = false;
             }
@@ -803,19 +912,19 @@
          * @param {boolean} requestPointerLock - should a pointer lock be requested from the user
          * @param {any} options - an options object to be sent to the requestFullscreen function
          */
-        public switchFullscreen(requestPointerLock: boolean, options?: any): void {
+        public switchFullscreen(requestPointerLock: boolean): void {
             if (this.isFullscreen) {
                 Tools.ExitFullscreen();
             } else {
                 this._pointerLockRequested = requestPointerLock;
-                Tools.RequestFullscreen(this._renderingCanvas, options);
+                Tools.RequestFullscreen(this._renderingCanvas);
             }
         }
 
-        public clear(color: any, backBuffer: boolean, depth: boolean, stencil:boolean = false): void {
+        public clear(color: any, backBuffer: boolean, depth: boolean, stencil: boolean = false): void {
             this.applyStates();
 
-            var mode = 0;            
+            var mode = 0;
             if (backBuffer) {
                 this._gl.clearColor(color.r, color.g, color.b, color.a !== undefined ? color.a : 1.0);
                 mode |= this._gl.COLOR_BUFFER_BIT;
@@ -891,7 +1000,15 @@
         }
 
         public endFrame(): void {
-            //this.flushFramebuffer();
+            //force a flush in case we are using a bad OS.
+            if (this._badOS) {
+                this.flushFramebuffer();
+            }
+
+            //submit frame to the vr device, if enabled
+            if (this._vrDisplayEnabled && this._vrDisplayEnabled.isPresenting) {
+                this._vrDisplayEnabled.submitFrame()
+            }
         }
 
         /**
@@ -935,14 +1052,76 @@
             }
         }
 
+
+        //WebVR functions
+
+        public initWebVR() {
+            if (!this.vrDisplaysPromise) {
+                this._getVRDisplays();
+            }
+        }
+
+        public enableVR(vrDevice) {
+            this._vrDisplayEnabled = vrDevice;
+            this._vrDisplayEnabled.requestPresent([{ source: this.getRenderingCanvas() }]).then(this._onVRFullScreenTriggered);
+        }
+
+        public disableVR() {
+            if (this._vrDisplayEnabled) {
+                this._vrDisplayEnabled.exitPresent().then(this._onVRFullScreenTriggered);
+            }
+        }
+
+        private _onVRFullScreenTriggered = () => {
+            if (this._vrDisplayEnabled && this._vrDisplayEnabled.isPresenting) {
+                //get the old size before we change
+                this._oldSize = new BABYLON.Size(this.getRenderWidth(), this.getRenderHeight());
+                this._oldHardwareScaleFactor = this.getHardwareScalingLevel();
+
+                //according to the WebVR specs, requestAnimationFrame should be triggered only once.
+                //But actually, no browser follow the specs...
+                //this._vrAnimationFrameHandler = this._vrDisplayEnabled.requestAnimationFrame(this._bindedRenderFunction);
+
+                //get the width and height, change the render size
+                var leftEye = this._vrDisplayEnabled.getEyeParameters('left');
+                var width, height;
+                this.setHardwareScalingLevel(1);
+                this.setSize(leftEye.renderWidth * 2, leftEye.renderHeight);
+            } else {
+                //When the specs are implemented, need to uncomment this.
+                //this._vrDisplayEnabled.cancelAnimationFrame(this._vrAnimationFrameHandler);
+                this.setHardwareScalingLevel(this._oldHardwareScaleFactor);
+                this.setSize(this._oldSize.width, this._oldSize.height);
+                this._vrDisplayEnabled = undefined;
+            }
+        }
+
+        private _getVRDisplays() {
+            var getWebVRDevices = (devices: Array<any>) => {
+                var size = devices.length;
+                var i = 0;
+
+                this._vrDisplays = devices.filter(function (device) {
+                    return devices[i] instanceof VRDisplay;
+                });
+
+                return this._vrDisplays;
+            }
+
+            //using a key due to typescript
+            if (navigator.getVRDisplays) {
+                this.vrDisplaysPromise = navigator.getVRDisplays().then(getWebVRDevices);
+            }
+        }
+
         public bindFramebuffer(texture: WebGLTexture, faceIndex?: number, requiredWidth?: number, requiredHeight?: number): void {
             this._currentRenderTarget = texture;
             this.bindUnboundFramebuffer(texture._framebuffer);
             var gl = this._gl;
             if (texture.isCube) {
-                
+
                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex, texture, 0);
-            } 
+            }
 
             gl.viewport(0, 0, requiredWidth || texture._width, requiredHeight || texture._height);
 
@@ -1134,12 +1313,12 @@
                 var offset = 0;
                 for (var index = 0; index < attributesCount; index++) {
 
-                    if(index < vertexDeclaration.length){
+                    if (index < vertexDeclaration.length) {
 
                         var order = effect.getAttributeLocation(index);
 
                         if (order >= 0) {
-                            if(!this._vertexAttribArraysEnabled[order]){
+                            if (!this._vertexAttribArraysEnabled[order]) {
                                 this._gl.enableVertexAttribArray(order);
                                 this._vertexAttribArraysEnabled[order] = true;
                             }
@@ -1148,11 +1327,11 @@
 
                         offset += vertexDeclaration[index] * 4;
 
-                    }else{
+                    } else {
 
                         //disable effect attributes that have no data
                         var order = effect.getAttributeLocation(index);
-                        if(this._vertexAttribArraysEnabled[order]){
+                        if (this._vertexAttribArraysEnabled[order]) {
                             this._gl.disableVertexAttribArray(order);
                             this._vertexAttribArraysEnabled[order] = false;
                         }
@@ -1183,14 +1362,14 @@
                         var vertexBuffer = vertexBuffers[attributes[index]];
 
                         if (!vertexBuffer) {
-                            if(this._vertexAttribArraysEnabled[order]){
+                            if (this._vertexAttribArraysEnabled[order]) {
                                 this._gl.disableVertexAttribArray(order);
                                 this._vertexAttribArraysEnabled[order] = false;
                             }
                             continue;
                         }
 
-                        if(!this._vertexAttribArraysEnabled[order]){
+                        if (!this._vertexAttribArraysEnabled[order]) {
                             this._gl.enableVertexAttribArray(order);
                             this._vertexAttribArraysEnabled[order] = true;
                         }
@@ -1269,7 +1448,7 @@
                 for (let i = 0; i < offsetLocations.length; i++) {
                     let ai = <InstancingAttributeInfo>offsetLocations[i];
 
-                    if(!this._vertexAttribArraysEnabled[ai.index]){
+                    if (!this._vertexAttribArraysEnabled[ai.index]) {
                         this._gl.enableVertexAttribArray(ai.index);
                         this._vertexAttribArraysEnabled[ai.index] = true;
                     }
@@ -1283,7 +1462,7 @@
                 for (let index = 0; index < 4; index++) {
                     let offsetLocation = <number>offsetLocations[index];
 
-                    if(!this._vertexAttribArraysEnabled[offsetLocation]){
+                    if (!this._vertexAttribArraysEnabled[offsetLocation]) {
                         this._gl.enableVertexAttribArray(offsetLocation);
                         this._vertexAttribArraysEnabled[offsetLocation] = true;
                     }
@@ -1436,13 +1615,13 @@
         }
 
         public enableEffect(effect: Effect): void {
-            if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
+            //if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
 
-                if (effect && effect.onBind) {
-                    effect.onBind(effect);
-                }
-                return;
-            }
+            //    if (effect && effect.onBind) {
+            //        effect.onBind(effect);
+            //    }
+            //    return;
+            //}
 
             // Use program
             this.setProgram(effect.getProgram());
@@ -1768,6 +1947,7 @@
             texture.noMipmap = noMipmap;
             texture.references = 1;
             texture.samplingMode = samplingMode;
+            texture.onLoadedCallbacks = [onLoad];
             this._loadedTexturesCache.push(texture);
 
             var onerror = () => {
@@ -1786,7 +1966,7 @@
 
                     prepareWebGLTexture(texture, this._gl, scene, header.width, header.height, invertY, noMipmap, false, () => {
                         Internals.TGATools.UploadContent(this._gl, data);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
                 if (!(fromData instanceof Array))
                     Tools.LoadFile(url, arrayBuffer => {
@@ -1803,7 +1983,7 @@
                     prepareWebGLTexture(texture, this._gl, scene, info.width, info.height, invertY, !loadMipmap, info.isFourCC, () => {
 
                         Internals.DDSTools.UploadDDSLevels(this._gl, this.getCaps().s3tc, data, info, loadMipmap, 1);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
 
                 if (!(fromData instanceof Array))
@@ -1842,7 +2022,7 @@
                         }
 
                         this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, this._gl.RGBA, this._gl.UNSIGNED_BYTE, isPot ? img : this._workingCanvas);
-                    }, onLoad, samplingMode);
+                    }, samplingMode);
                 };
 
 
@@ -1980,6 +2160,9 @@
                 this._gl.generateMipmap(this._gl.TEXTURE_2D);
             }
             this._bindTextureDirectly(this._gl.TEXTURE_2D, null);
+            if (premulAlpha) {
+                this._gl.pixelStorei(this._gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+            }
             this.resetTextureCache();
             texture.isReady = true;
         }
@@ -2104,7 +2287,7 @@
             this.bindUnboundFramebuffer(framebuffer);
 
             // Manage attachments
-            if (generateStencilBuffer) {                
+            if (generateStencilBuffer) {
                 gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, depthStencilBuffer);
             }
             else if (generateDepthBuffer) {
@@ -2134,7 +2317,7 @@
             texture.references = 1;
             texture.samplingMode = samplingMode;
             texture.type = type;
-            
+
             this.resetTextureCache();
 
             this._loadedTexturesCache.push(texture);
@@ -2201,7 +2384,7 @@
             this.bindUnboundFramebuffer(framebuffer);
 
             // Manage attachments
-            if (generateStencilBuffer) {                
+            if (generateStencilBuffer) {
                 gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, depthStencilBuffer);
             }
             else if (generateDepthBuffer) {
@@ -2234,13 +2417,14 @@
             return texture;
         }
 
-        public createCubeTexture(rootUrl: string, scene: Scene, files: string[], noMipmap?: boolean): WebGLTexture {
+        public createCubeTexture(rootUrl: string, scene: Scene, files: string[], noMipmap?: boolean, onLoad: () => void = null, onError: () => void = null): WebGLTexture {
             var gl = this._gl;
 
             var texture = gl.createTexture();
             texture.isCube = true;
             texture.url = rootUrl;
             texture.references = 1;
+            texture.onLoadedCallbacks = [];
 
             var extension = rootUrl.substr(rootUrl.length - 4, 4).toLowerCase();
             var isDDS = this.getCaps().s3tc && (extension === ".dds");
@@ -2272,7 +2456,7 @@
                     texture._width = info.width;
                     texture._height = info.height;
                     texture.isReady = true;
-                }, null, null, true);
+                }, null, null, true, onError);
             } else {
                 cascadeLoad(rootUrl, scene, imgs => {
                     var width = Tools.GetExponentOfTwo(imgs[0].width, this._caps.maxCubemapTextureSize);
@@ -2311,7 +2495,15 @@
                     texture._width = width;
                     texture._height = height;
                     texture.isReady = true;
-                }, files);
+
+                    texture.onLoadedCallbacks.forEach(callback => {
+                        callback();
+                    });
+
+                    if (onLoad) {
+                        onLoad();
+                    }
+                }, files, onError);
             }
 
             this._loadedTexturesCache.push(texture);
@@ -2739,6 +2931,16 @@
             }
         }
 
+        public unbindAllAttributes() {
+            for (var i = 0, ul = this._vertexAttribArraysEnabled.length; i < ul; i++) {
+                if (i >= this._caps.maxVertexAttribs || !this._vertexAttribArraysEnabled[i]) {
+                    continue;
+                }
+                this._gl.disableVertexAttribArray(i);
+                this._vertexAttribArraysEnabled[i] = false;
+            }
+        }
+
         // Dispose
         public dispose(): void {
             this.hideLoadingUI();
@@ -2759,14 +2961,12 @@
             }
 
             // Unbind
-            for (var i = 0, ul = this._vertexAttribArraysEnabled.length; i < ul; i++) {
-                if (i >= this._caps.maxVertexAttribs || !this._vertexAttribArraysEnabled[i]) {
-                    continue;
-                }
-                this._gl.disableVertexAttribArray(i);
-            }
+            this.unbindAllAttributes();
 
             this._gl = null;
+
+            //WebVR
+            this.disableVR();
 
             // Events
             window.removeEventListener("blur", this._onBlur);

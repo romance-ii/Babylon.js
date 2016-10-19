@@ -88,9 +88,9 @@ class Mesh(FCurveAnimatable):
             self.scaling  = Vector((1, 1, 1))
             
         # ensure no unapplied rotation or scale, when there is an armature
-        self.hasUnappliedTransforms = (self.scaling .x != 1 or self.scaling .y != 1 or self.scaling .z != 1 or
-                self.rotation.x != 0 or self.rotation.y != 0 or self.rotation.z != 0 or 
-                (object.rotation_mode == 'QUATERNION' and self.rotation.w != 1)
+        self.hasUnappliedTransforms = (self.scaling.x != 1 or self.scaling.y != 1 or self.scaling.z != 1 or
+                (hasattr(self, 'rotation'          ) and (self.rotation          .x != 0 or self.rotation          .y != 0 or self.rotation          .z != 0)) or 
+                (hasattr(self, 'rotationQuaternion') and (self.rotationQuaternion.x != 0 or self.rotationQuaternion.y != 0 or self.rotationQuaternion.z != 0 or self.rotationQuaternion.w != 1))
                 )
 
         # determine parent & dataName
@@ -728,7 +728,7 @@ bpy.types.Mesh.usePNG = bpy.props.BoolProperty(
 )
 bpy.types.Mesh.bakeSize = bpy.props.IntProperty(
     name='Texture Size',
-    description='',
+    description='Final dimensions of texture(s).  Not required to be a power of 2, but recommended.',
     default = 1024
 )
 bpy.types.Mesh.bakeQuality = bpy.props.IntProperty(
