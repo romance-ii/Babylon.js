@@ -168,6 +168,14 @@
             return this._compilationError;
         }
 
+        public getVertexShaderSource(): string {
+            return this._engine.getVertexShaderSource(this._program);
+        }
+
+        public getFragmentShaderSource(): string {
+            return this._engine.getFragmentShaderSource(this._program);
+        }
+
         // Methods
         public _loadVertexShader(vertex: any, callback: (data: any) => void): void {
             // DOM element ?
@@ -175,6 +183,13 @@
                 var vertexCode = Tools.GetDOMTextContent(vertex);
                 callback(vertexCode);
                 return;
+            }
+
+            // Base64 encoded ?
+            if (vertex.substr(0, 7) === "base64:") {
+            	var vertexBinary = window.atob(vertex.substr(7));
+            	callback(vertexBinary);
+            	return;
             }
 
             // Is in local store ?
@@ -201,6 +216,13 @@
                 var fragmentCode = Tools.GetDOMTextContent(fragment);
                 callback(fragmentCode);
                 return;
+            }
+
+            // Base64 encoded ?
+            if (fragment.substr(0, 7) === "base64:") {
+            	var fragmentBinary = window.atob(fragment.substr(7));
+            	callback(fragmentBinary);
+            	return;
             }
 
             // Is in local store ?
@@ -343,23 +365,25 @@
 
                 engine.bindSamplers(this);
 
+                this._compilationError = "";
                 this._isReady = true;
                 if (this.onCompiled) {
                     this.onCompiled(this);
                 }
             } catch (e) {
+                this._compilationError = e.message;
+
                 // Let's go through fallbacks then
+                Tools.Error("Unable to compile effect: ");
+                Tools.Error("Defines: " + defines);
+                Tools.Error("Error: " + this._compilationError);
+                this._dumpShadersName();
+
                 if (fallbacks && fallbacks.isMoreFallbacks) {
-                    Tools.Error("Unable to compile effect with current defines. Trying next fallback.");
-                    this._dumpShadersName();
+                    Tools.Error("Trying next fallback.");
                     defines = fallbacks.reduce(defines);
                     this._prepareEffect(vertexSourceCode, fragmentSourceCode, attributesNames, defines, fallbacks);
                 } else { // Sorry we did everything we can
-                    Tools.Error("Unable to compile effect: ");
-                    this._dumpShadersName();
-                    Tools.Error("Defines: " + defines);
-                    Tools.Error("Error: " + e.message);
-                    this._compilationError = e.message;
 
                     if (this.onError) {
                         this.onError(this, this._compilationError);

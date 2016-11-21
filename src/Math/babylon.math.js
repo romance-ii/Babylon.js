@@ -818,6 +818,15 @@ var BABYLON;
         Vector3.Up = function () {
             return new Vector3(0, 1.0, 0);
         };
+        Vector3.Forward = function () {
+            return new Vector3(0, 0, 1.0);
+        };
+        Vector3.Right = function () {
+            return new Vector3(1.0, 0, 0);
+        };
+        Vector3.Left = function () {
+            return new Vector3(-1.0, 0, 0);
+        };
         Vector3.TransformCoordinates = function (vector, transformation) {
             var result = Vector3.Zero();
             Vector3.TransformCoordinatesToRef(vector, transformation, result);
@@ -847,9 +856,12 @@ var BABYLON;
             return result;
         };
         Vector3.TransformNormalToRef = function (vector, transformation, result) {
-            result.x = (vector.x * transformation.m[0]) + (vector.y * transformation.m[4]) + (vector.z * transformation.m[8]);
-            result.y = (vector.x * transformation.m[1]) + (vector.y * transformation.m[5]) + (vector.z * transformation.m[9]);
-            result.z = (vector.x * transformation.m[2]) + (vector.y * transformation.m[6]) + (vector.z * transformation.m[10]);
+            var x = (vector.x * transformation.m[0]) + (vector.y * transformation.m[4]) + (vector.z * transformation.m[8]);
+            var y = (vector.x * transformation.m[1]) + (vector.y * transformation.m[5]) + (vector.z * transformation.m[9]);
+            var z = (vector.x * transformation.m[2]) + (vector.y * transformation.m[6]) + (vector.z * transformation.m[10]);
+            result.x = x;
+            result.y = y;
+            result.z = z;
         };
         Vector3.TransformNormalFromFloatsToRef = function (x, y, z, transformation, result) {
             result.x = (x * transformation.m[0]) + (y * transformation.m[4]) + (z * transformation.m[8]);
@@ -2466,6 +2478,51 @@ var BABYLON;
             result.m[12] = temp * plane.d;
             result.m[13] = temp2 * plane.d;
             result.m[14] = temp3 * plane.d;
+            result.m[15] = 1.0;
+        };
+        Matrix.FromXYZAxesToRef = function (xaxis, yaxis, zaxis, mat) {
+            mat.m[0] = xaxis.x;
+            mat.m[1] = xaxis.y;
+            mat.m[2] = xaxis.z;
+            mat.m[3] = 0;
+            mat.m[4] = yaxis.x;
+            mat.m[5] = yaxis.y;
+            mat.m[6] = yaxis.z;
+            mat.m[7] = 0;
+            mat.m[8] = zaxis.x;
+            mat.m[9] = zaxis.y;
+            mat.m[10] = zaxis.z;
+            mat.m[11] = 0;
+            mat.m[12] = 0;
+            mat.m[13] = 0;
+            mat.m[14] = 0;
+            mat.m[15] = 1;
+        };
+        Matrix.FromQuaternionToRef = function (quat, result) {
+            var xx = quat.x * quat.x;
+            var yy = quat.y * quat.y;
+            var zz = quat.z * quat.z;
+            var xy = quat.x * quat.y;
+            var zw = quat.z * quat.w;
+            var zx = quat.z * quat.x;
+            var yw = quat.y * quat.w;
+            var yz = quat.y * quat.z;
+            var xw = quat.x * quat.w;
+            result.m[0] = 1.0 - (2.0 * (yy + zz));
+            result.m[1] = 2.0 * (xy + zw);
+            result.m[2] = 2.0 * (zx - yw);
+            result.m[3] = 0;
+            result.m[4] = 2.0 * (xy - zw);
+            result.m[5] = 1.0 - (2.0 * (zz + xx));
+            result.m[6] = 2.0 * (yz + xw);
+            result.m[7] = 0;
+            result.m[8] = 2.0 * (zx + yw);
+            result.m[9] = 2.0 * (yz - xw);
+            result.m[10] = 1.0 - (2.0 * (yy + xx));
+            result.m[11] = 0;
+            result.m[12] = 0;
+            result.m[13] = 0;
+            result.m[14] = 0;
             result.m[15] = 1.0;
         };
         Matrix._tempQuaternion = new Quaternion();

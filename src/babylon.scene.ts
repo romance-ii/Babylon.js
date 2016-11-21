@@ -156,6 +156,9 @@
 
         public hoverCursor = "pointer";
 
+        // Metadata
+        public metadata: any = null;
+
         // Events
 
         /**
@@ -552,6 +555,9 @@
 
         private _pickedDownMesh: AbstractMesh;
         private _pickedDownSprite: Sprite;
+        private _externalData: StringDictionary<Object>;
+        private _uid: string;
+
 
         /**
          * @constructor
@@ -561,6 +567,9 @@
             this._engine = engine;
 
             engine.scenes.push(this);
+
+            this._externalData = new StringDictionary<Object>();
+            this._uid = null;
 
             this._renderingManager = new RenderingManager(this);
 
@@ -813,7 +822,11 @@
                     this.setPointerOverMesh(pickResult.pickedMesh);
 
                     if (this._pointerOverMesh.actionManager && this._pointerOverMesh.actionManager.hasPointerTriggers) {
-                        canvas.style.cursor = this.hoverCursor;
+                        if (this._pointerOverMesh.actionManager.hoverCursor) {
+                            canvas.style.cursor = this._pointerOverMesh.actionManager.hoverCursor;
+                        } else {
+                            canvas.style.cursor = this.hoverCursor;
+                        }
                     } else {
                         canvas.style.cursor = "";
                     }
@@ -823,8 +836,12 @@
                     pickResult = this.pickSprite(this._unTranslatedPointerX, this._unTranslatedPointerY, spritePredicate, false, this.cameraToUseForPointers);
 
                     if (pickResult.hit && pickResult.pickedSprite) {
-                        canvas.style.cursor = this.hoverCursor;
                         this.setPointerOverSprite(pickResult.pickedSprite);
+                        if (this._pointerOverSprite.actionManager && this._pointerOverSprite.actionManager.hoverCursor) {
+                            canvas.style.cursor = this._pointerOverSprite.actionManager.hoverCursor;
+                        } else {
+                            canvas.style.cursor = this.hoverCursor;
+                        }
                     } else {
                         this.setPointerOverSprite(null);
                         // Restore pointer
@@ -889,10 +906,12 @@
                                     pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnRightPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
                                     break;
                             }
-                            pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnPickDownTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
+                            if (pickResult.pickedMesh.actionManager) {
+                                pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnPickDownTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
+                            }
                         }
 
-                        if (pickResult.pickedMesh.actionManager.hasSpecificTrigger(ActionManager.OnLongPressTrigger)) {
+                        if (pickResult.pickedMesh.actionManager && pickResult.pickedMesh.actionManager.hasSpecificTrigger(ActionManager.OnLongPressTrigger)) {
                             var that = this;
                             window.setTimeout(function () {
                                 var pickResult = that.pick(that._unTranslatedPointerX, that._unTranslatedPointerY,
@@ -941,7 +960,9 @@
                                     pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnRightPickTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
                                     break;
                             }
-                            pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnPickDownTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
+                            if (pickResult.pickedSprite.actionManager) {
+                                pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnPickDownTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
+                            }
                         }
                     }
                 }
@@ -986,13 +1007,14 @@
                     }
                     if (pickResult.pickedMesh.actionManager) {
                         pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnPickUpTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
-
-                        if (Math.abs(this._startingPointerPosition.x - this._pointerX) < ActionManager.DragMovementThreshold && Math.abs(this._startingPointerPosition.y - this._pointerY) < ActionManager.DragMovementThreshold) {
-                            pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
+                        if (pickResult.pickedMesh.actionManager) {
+                            if (Math.abs(this._startingPointerPosition.x - this._pointerX) < ActionManager.DragMovementThreshold && Math.abs(this._startingPointerPosition.y - this._pointerY) < ActionManager.DragMovementThreshold) {
+                                pickResult.pickedMesh.actionManager.processTrigger(ActionManager.OnPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt));
+                            }
                         }
                     }
                 }
-                if (this._pickedDownMesh && this._pickedDownMesh !== pickResult.pickedMesh) {
+                if (this._pickedDownMesh && this._pickedDownMesh.actionManager && this._pickedDownMesh !== pickResult.pickedMesh) {
                     this._pickedDownMesh.actionManager.processTrigger(ActionManager.OnPickOutTrigger, ActionEvent.CreateNew(this._pickedDownMesh, evt));
                 }
 
@@ -1015,16 +1037,16 @@
                     if (pickResult.hit && pickResult.pickedSprite) {
                         if (pickResult.pickedSprite.actionManager) {
                             pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnPickUpTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
-
-                            if (Math.abs(this._startingPointerPosition.x - this._pointerX) < ActionManager.DragMovementThreshold && Math.abs(this._startingPointerPosition.y - this._pointerY) < ActionManager.DragMovementThreshold) {
-                                pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnPickTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
+                            if (pickResult.pickedSprite.actionManager) {
+                                if (Math.abs(this._startingPointerPosition.x - this._pointerX) < ActionManager.DragMovementThreshold && Math.abs(this._startingPointerPosition.y - this._pointerY) < ActionManager.DragMovementThreshold) {
+                                    pickResult.pickedSprite.actionManager.processTrigger(ActionManager.OnPickTrigger, ActionEvent.CreateNewFromSprite(pickResult.pickedSprite, this, evt));
+                                }
                             }
                         }
                     }
-                    if (this._pickedDownSprite && this._pickedDownSprite !== pickResult.pickedSprite) {
+                    if (this._pickedDownSprite && this._pickedDownSprite.actionManager && this._pickedDownSprite !== pickResult.pickedSprite) {
                         this._pickedDownSprite.actionManager.processTrigger(ActionManager.OnPickOutTrigger, ActionEvent.CreateNewFromSprite(this._pickedDownSprite, this, evt));
                     }
-
                 }
             };
 
@@ -1868,6 +1890,56 @@
             return (this._activeMeshes.indexOf(mesh) !== -1);
         }
 
+        /**
+         * Return a unique id as a string which can serve as an identifier for the scene
+         */
+        public get uid(): string {
+            if (!this._uid) {
+                this._uid = Tools.RandomId();
+            }
+            return this._uid;
+        }
+
+        /**
+         * Add an externaly attached data from its key.
+         * This method call will fail and return false, if such key already exists.
+         * If you don't care and just want to get the data no matter what, use the more convenient getOrAddExternalDataWithFactory() method.
+         * @param key the unique key that identifies the data
+         * @param data the data object to associate to the key for this Engine instance
+         * @return true if no such key were already present and the data was added successfully, false otherwise
+         */
+        public addExternalData<T>(key: string, data: T): boolean {
+            return this._externalData.add(key, data);
+        }
+
+        /**
+         * Get an externaly attached data from its key
+         * @param key the unique key that identifies the data
+         * @return the associated data, if present (can be null), or undefined if not present
+         */
+        public getExternalData<T>(key: string): T {
+            return <T>this._externalData.get(key);
+        }
+
+        /**
+         * Get an externaly attached data from its key, create it using a factory if it's not already present
+         * @param key the unique key that identifies the data
+         * @param factory the factory that will be called to create the instance if and only if it doesn't exists
+         * @return the associated data, can be null if the factory returned null.
+         */
+        public getOrAddExternalDataWithFactory<T>(key: string, factory: (k: string) => T): T {
+            return <T>this._externalData.getOrAddWithFactory(key, factory);
+        }
+
+        /**
+         * Remove an externaly attached data from the Engine instance
+         * @param key the unique key that identifies the data
+         * @return true if the data was successfully removed, false if it doesn't exist
+         */
+        public removeExternalData(key): boolean {
+            return this._externalData.remove(key);
+        }
+
         private _evaluateSubMesh(subMesh: SubMesh, mesh: AbstractMesh): void {
             if (mesh.alwaysSelectAsActiveMesh || mesh.subMeshes.length === 1 || subMesh.isInFrustum(this._frustumPlanes)) {
                 var material = subMesh.getMaterial();
@@ -2064,6 +2136,8 @@
 
             // Render targets
             this._renderTargetsDuration.beginMonitoring();
+            var needsRestoreFrameBuffer = false;
+
             var beforeRenderTargetDate = Tools.Now;
             if (this.renderTargetsEnabled && this._renderTargets.length > 0) {
                 this._intermediateRendering = true;
@@ -2080,14 +2154,49 @@
 
                 this._intermediateRendering = false;
                 this._renderId++;
-                engine.restoreDefaultFramebuffer(); // Restore back buffer
+
+                needsRestoreFrameBuffer = true; // Restore back buffer
             }
+
+            // Render HighlightLayer Texture
+            var stencilState = this._engine.getStencilBuffer();
+            var renderhighlights = false;
+            if (this.renderTargetsEnabled && this.highlightLayers && this.highlightLayers.length > 0) {
+                this._intermediateRendering = true;
+                for (let i = 0; i < this.highlightLayers.length; i++) {
+                    let highlightLayer = this.highlightLayers[i];
+
+                    if (highlightLayer.shouldRender() &&
+                        (!highlightLayer.camera ||
+                            (highlightLayer.camera.cameraRigMode === Camera.RIG_MODE_NONE && camera === highlightLayer.camera) ||
+                            (highlightLayer.camera.cameraRigMode !== Camera.RIG_MODE_NONE && highlightLayer.camera._rigCameras.indexOf(camera) > -1))) {
+
+                        renderhighlights = true;
+
+                        var renderTarget = (<RenderTargetTexture>(<any>highlightLayer)._mainTexture);
+                        if (renderTarget._shouldRender()) {
+                            this._renderId++;
+                            renderTarget.render(false, false);
+                            needsRestoreFrameBuffer = true;
+                        }
+                    }
+                }
+
+                this._intermediateRendering = false;
+                this._renderId++;
+            }
+
+            if (needsRestoreFrameBuffer) {
+                engine.restoreDefaultFramebuffer();
+            }
+
             this._renderTargetsDuration.endMonitoring(false);
 
             // Prepare Frame
             this.postProcessManager._prepareFrame();
 
             this._renderDuration.beginMonitoring();
+
             // Backgrounds
             var layerIndex;
             var layer;
@@ -2106,17 +2215,8 @@
             Tools.StartPerformanceCounter("Main render");
 
             // Activate HighlightLayer stencil
-            var stencilState = this._engine.getStencilBuffer();
-            var renderhighlights = false;
-            if (this.highlightLayers && this.highlightLayers.length > 0) {
-                for (let i = 0; i < this.highlightLayers.length; i++) {
-                    let highlightLayer = this.highlightLayers[i];
-                    if ((!highlightLayer.camera || camera == highlightLayer.camera) && highlightLayer.shouldRender()) {
-                        renderhighlights = true;
-                        this._engine.setStencilBuffer(true);
-                        break;
-                    }
-                }
+            if (renderhighlights) {
+                this._engine.setStencilBuffer(true);
             }
 
             this._renderingManager.render(null, null, true, true);
@@ -2356,23 +2456,12 @@
                 this._renderTargets.push(this._depthRenderer.getDepthMap());
             }
 
-            // HighlightLayer
-            if (this.highlightLayers && this.highlightLayers.length > 0) {
-                for (let i = 0; i < this.highlightLayers.length; i++) {
-                    if (this.highlightLayers[i].shouldRender()) {
-                        this._renderTargets.push((<any>this.highlightLayers[i])._mainTexture);
-                    }
-                }
-            }
-
             // RenderPipeline
             this.postProcessRenderPipelineManager.update();
 
             // Multi-cameras?
             if (this.activeCameras.length > 0) {
-                var currentRenderId = this._renderId;
                 for (var cameraIndex = 0; cameraIndex < this.activeCameras.length; cameraIndex++) {
-                    this._renderId = currentRenderId;
                     if (cameraIndex > 0) {
                         this._engine.clear(0, false, true, true);
                     }
@@ -2788,6 +2877,33 @@
             return pickingInfo || new PickingInfo();
         }
 
+        private _internalMultiPick(rayFunction: (world: Matrix) => Ray, predicate: (mesh: AbstractMesh) => boolean): PickingInfo[] {
+            var pickingInfos = new Array<PickingInfo>();
+
+            for (var meshIndex = 0; meshIndex < this.meshes.length; meshIndex++) {
+                var mesh = this.meshes[meshIndex];
+
+                if (predicate) {
+                    if (!predicate(mesh)) {
+                        continue;
+                    }
+                } else if (!mesh.isEnabled() || !mesh.isVisible || !mesh.isPickable) {
+                    continue;
+                }
+
+                var world = mesh.getWorldMatrix();
+                var ray = rayFunction(world);
+
+                var result = mesh.intersects(ray, false);
+                if (!result || !result.hit)
+                    continue;
+
+                pickingInfos.push(result);
+            }
+
+            return pickingInfos;
+        }
+
 
         private _internalPickSprites(ray: Ray, predicate?: (sprite: Sprite) => boolean, fastCheck?: boolean, camera?: Camera): PickingInfo {
             var pickingInfo = null;
@@ -2820,27 +2936,27 @@
             return pickingInfo || new PickingInfo();
         }
 
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
         public pick(x: number, y: number, predicate?: (mesh: AbstractMesh) => boolean, fastCheck?: boolean, camera?: Camera): PickingInfo {
-            /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
-            /// <param name="x">X position on screen</param>
-            /// <param name="y">Y position on screen</param>
-            /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
-            /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
-            /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
             return this._internalPick(world => this.createPickingRay(x, y, world, camera), predicate, fastCheck);
         }
 
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible sprites. Can be set to null. In this case, a sprite must have isPickable set to true</param>
+        /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
         public pickSprite(x: number, y: number, predicate?: (sprite: Sprite) => boolean, fastCheck?: boolean, camera?: Camera): PickingInfo {
-            /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
-            /// <param name="x">X position on screen</param>
-            /// <param name="y">Y position on screen</param>
-            /// <param name="predicate">Predicate function used to determine eligible sprites. Can be set to null. In this case, a sprite must have isPickable set to true</param>
-            /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
-            /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
             return this._internalPickSprites(this.createPickingRayInCameraSpace(x, y, camera), predicate, fastCheck, camera);
         }
 
-        public pickWithRay(ray: Ray, predicate: (mesh: Mesh) => boolean, fastCheck?: boolean) {
+        public pickWithRay(ray: Ray, predicate: (mesh: Mesh) => boolean, fastCheck?: boolean): PickingInfo {
             return this._internalPick(world => {
                 if (!this._pickWithRayInverseMatrix) {
                     this._pickWithRayInverseMatrix = Matrix.Identity();
@@ -2848,6 +2964,28 @@
                 world.invertToRef(this._pickWithRayInverseMatrix);
                 return Ray.Transform(ray, this._pickWithRayInverseMatrix);
             }, predicate, fastCheck);
+        }
+
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
+        public multiPick(x: number, y: number, predicate?: (mesh: AbstractMesh) => boolean, camera?: Camera): PickingInfo[] {
+            return this._internalMultiPick(world => this.createPickingRay(x, y, world, camera), predicate);
+        }
+
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="ray">Ray to use</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        public multiPickWithRay(ray: Ray, predicate: (mesh: Mesh) => boolean): PickingInfo[] {
+            return this._internalMultiPick(world => {
+                if (!this._pickWithRayInverseMatrix) {
+                    this._pickWithRayInverseMatrix = Matrix.Identity();
+                }
+                world.invertToRef(this._pickWithRayInverseMatrix);
+                return Ray.Transform(ray, this._pickWithRayInverseMatrix);
+            }, predicate);
         }
 
         public setPointerOverMesh(mesh: AbstractMesh): void {

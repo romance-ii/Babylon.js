@@ -63,7 +63,6 @@
          */
         public static RENDEROBSERVABLE_POST = 2;
 
-
         private static _INSTANCES : Array<Canvas2D> = [];
 
         constructor(scene: Scene, settings?: {
@@ -100,6 +99,10 @@
 
             this._uid = null;
             this._cachedCanvasGroup = null;
+
+            this._renderingGroupObserver = null;
+            this._beforeRenderObserver = null;
+            this._afterRenderObserver = null;
 
             this._profileInfoText = null;
 
@@ -188,8 +191,8 @@
                     if (!settings.renderingPhase.camera || settings.renderingPhase.renderingGroupID==null) {
                         throw Error("You have to specify a valid camera and renderingGroup");
                     }
-                    this._scene.onRenderingGroupObservable.add((e, s) => {
-                        if (this._scene.activeCamera === settings.renderingPhase.camera) {
+                    this._renderingGroupObserver = this._scene.onRenderingGroupObservable.add((e, s) => {
+                        if ((this._scene.activeCamera === settings.renderingPhase.camera) && (e.renderStage===RenderingGroupInfo.STAGE_POSTTRANSPARENT)) {
                             this._engine.clear(null, false, true, true);
                             this._render();
                         }
@@ -492,6 +495,7 @@
         private _updatePointerInfo(eventData: PointerInfoBase, localPosition: Vector2): boolean {
             let s = this.scale;
             let pii = this._primPointerInfo;
+            pii.cancelBubble = false;
             if (!pii.canvasPointerPos) {
                 pii.canvasPointerPos = Vector2.Zero();
             }
@@ -603,7 +607,7 @@
                 let capturedPrim = this.getCapturedPrimitive(this._primPointerInfo.pointerId);
 
                 // Notify the previous "over" prim that the pointer is no longer over it
-                if ((capturedPrim && capturedPrim === prevPrim) || (!capturedPrim && prevPrim)) {
+                if ((capturedPrim && capturedPrim === prevPrim) || (!capturedPrim && prevPrim && !prevPrim.isDisposed)) {
                     this._primPointerInfo.updateRelatedTarget(prevPrim, this._previousOverPrimitive.intersectionLocation);
                     this._bubbleNotifyPrimPointerObserver(prevPrim, PrimitivePointerInfo.PointerOut, null);
                 }
@@ -843,6 +847,11 @@
                 this._setupInteraction(false);
             }
 
+            if (this._renderingGroupObserver) {
+                this._scene.onRenderingGroupObservable.remove(this._renderingGroupObserver);
+                this._renderingGroupObserver = null;
+            }
+
             if (this._beforeRenderObserver) {
                 this._scene.onBeforeRenderObservable.remove(this._beforeRenderObserver);
                 this._beforeRenderObserver = null;
@@ -862,7 +871,9 @@
             let index = Canvas2D._INSTANCES.indexOf(this);
             if (index > -1) {
                 Canvas2D._INSTANCES.splice(index, 1);
-            }  
+            }
+
+            return true;
         }
 
         /**
@@ -1039,6 +1050,10 @@
             this._setupInteraction(enable);
         }
 
+        public get fitRenderingDevice(): boolean {
+            return this._fitRenderingDevice;
+        }
+
         public get designSize(): Size {
             return this._designSize;
         }
@@ -1073,7 +1088,7 @@
                     new Rectangle2D({
                         id: "ProfileBorder", border: "#FFFFFFFF", borderThickness: 2, roundRadius: 5, fill: "#C04040C0", marginAlignment: "h: left, v: top", margin: "10", padding: "10", children:
                         [
-                            new Text2D("Stats", { id: "ProfileInfoText", marginAlignment: "h: left, v: top", fontName: "10pt Lucida Console" })
+                            new Text2D("Stats", { id: "ProfileInfoText", marginAlignment: "h: left, v: top", fontName: "12pt Lucida Console", fontSignedDistanceField: true })
                         ]
                     })
 
@@ -1084,6 +1099,11 @@
             this._profilingCanvas = canvas;
             return canvas;
         }
+
+        /**
+         * Instanced Array will be create if there's at least this number of parts/prim that can fit into it
+         */
+        public minPartCountToUseInstancedArray = 5;
 
         private checkBackgroundAvailability() {
             if (this._cachingStrategy === Canvas2D.CACHESTRATEGY_TOPLEVELGROUPS) {
@@ -1140,7 +1160,7 @@
                     ` - Update Positioning: ${this.updatePositioningCounter.current}, (avg:${format(this.updatePositioningCounter.lastSecAverage)}, t:${format(this.updatePositioningCounter.total)})\n` + 
                     ` - Update Local  Trans: ${this.updateLocalTransformCounter.current}, (avg:${format(this.updateLocalTransformCounter.lastSecAverage)}, t:${format(this.updateLocalTransformCounter.total)})\n` + 
                     ` - Update Global Trans: ${this.updateGlobalTransformCounter.current}, (avg:${format(this.updateGlobalTransformCounter.lastSecAverage)}, t:${format(this.updateGlobalTransformCounter.total)})\n` + 
-                    ` - BoundingInfo Recompute: ${this.boundingInfoRecomputeCounter.current}, (avg:${format(this.boundingInfoRecomputeCounter.lastSecAverage)}, t:${format(this.boundingInfoRecomputeCounter.total)})\n`;
+                    ` - BoundingInfo Recompute: ${this.boundingInfoRecomputeCounter.current}, (avg:${format(this.boundingInfoRecomputeCounter.lastSecAverage)}, t:${format(this.boundingInfoRecomputeCounter.total)})`;
             this._profileInfoText.text = p;
         }
 
@@ -1219,6 +1239,7 @@
         private _cachingStrategy: number;
         private _hierarchyLevelMaxSiblingCount: number;
         private _groupCacheMaps: StringDictionary<MapTexture[]>;
+        private _renderingGroupObserver: Observer<RenderingGroupInfo>;
         private _beforeRenderObserver: Observer<Scene>;
         private _afterRenderObserver: Observer<Scene>;
         private _supprtInstancedArray: boolean;
@@ -1435,8 +1456,6 @@
             }
         }
 
-        private static _unS = new Vector2(1, 1);
-
         /**
          * Internal method that allocate a cache for the given group.
          * Caching is made using a collection of MapTexture where many groups have their bitmap cache stored inside.
@@ -1460,6 +1479,7 @@
             // Determine size
             let size = group.actualSize;
             size = new Size(Math.ceil(size.width * scale.x), Math.ceil(size.height * scale.y));
+            let originalSize = size.clone();
             if (minSize) {
                 size.width = Math.max(minSize.width, size.width);
                 size.height = Math.max(minSize.height, size.height);
@@ -1508,15 +1528,18 @@
 
                 let sprite: Sprite2D;
                 if (this._cachingStrategy === Canvas2D.CACHESTRATEGY_CANVAS) {
+                    if (this._cachedCanvasGroup) {
+                        this._cachedCanvasGroup.dispose();
+                    }
                     this._cachedCanvasGroup = Group2D._createCachedCanvasGroup(this);
-                    sprite = new Sprite2D(map, { parent: this._cachedCanvasGroup, id: "__cachedCanvasSprite__", spriteSize: node.contentSize, spriteLocation: node.pos });
+                    sprite = new Sprite2D(map, { parent: this._cachedCanvasGroup, id: "__cachedCanvasSprite__", spriteSize: originalSize, spriteLocation: node.pos });
                     sprite.zOrder = 1;
                     sprite.origin = Vector2.Zero();
                 }
 
                 // Create a Sprite that will be used to render this cache, the "__cachedSpriteOfGroup__" starting id is a hack to bypass exception throwing in case of the Canvas doesn't normally allows direct primitives
                 else {
-                    sprite = new Sprite2D(map, { parent: parent, id: `__cachedSpriteOfGroup__${group.id}`, x: group.actualPosition.x, y: group.actualPosition.y, spriteSize: node.contentSize, spriteLocation: node.pos, dontInheritParentScale: true });
+                    sprite = new Sprite2D(map, { parent: parent, id: `__cachedSpriteOfGroup__${group.id}`, x: group.actualPosition.x, y: group.actualPosition.y, spriteSize: originalSize, spriteLocation: node.pos, dontInheritParentScale: true });
                     sprite.origin = group.origin.clone();
                     sprite.addExternalData("__cachedGroup__", group);
                     sprite.pointerEventObservable.add((e, s) => {
@@ -1747,6 +1770,7 @@
             //}
 
             let createWorldSpaceNode = !settings || (settings.customWorldSpaceNode == null);
+            this._customWorldSpaceNode = !createWorldSpaceNode;
             let id = settings ? settings.id || null : null;
 
             // Set the max size of texture allowed for the adaptive render of the world space canvas cached bitmap
@@ -1786,10 +1810,23 @@
             this.propertyChanged.add((e, st) => {
                 let mesh = this._worldSpaceNode as AbstractMesh;
                 if (mesh) {
-                    mesh.isVisible = this.isVisible;
+                    mesh.isVisible = e.newValue;
                 }
             }, Prim2DBase.isVisibleProperty.flagId);
         }
+
+        public dispose(): boolean {
+            if (!super.dispose()) {
+                return false;
+            }
+
+            if (!this._customWorldSpaceNode && this._worldSpaceNode) {
+                this._worldSpaceNode.dispose();
+                this._worldSpaceNode = null;
+            }
+        }
+
+        private _customWorldSpaceNode: boolean;
     }
 
     @className("ScreenSpaceCanvas2D", "BABYLON")

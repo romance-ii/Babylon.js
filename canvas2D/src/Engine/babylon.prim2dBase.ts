@@ -1239,7 +1239,7 @@
          * @param dstOffset the position of the resulting area
          * @param dstArea the size of the resulting area
          */
-        public compute(sourceArea: Size, dstOffset: Vector2, dstArea: Size) {
+        public compute(sourceArea: Size, dstOffset: Vector4, dstArea: Size) {
             this._computePixels(0, sourceArea, true);
             this._computePixels(1, sourceArea, true);
             this._computePixels(2, sourceArea, true);
@@ -1250,6 +1250,9 @@
 
             dstOffset.y = this.bottomPixels;
             dstArea.height = sourceArea.height - (dstOffset.y + this.topPixels);
+
+            dstOffset.z = this.rightPixels;
+            dstOffset.w = this.topPixels;
         }
 
         /**
@@ -1267,7 +1270,7 @@
             result.height = this.bottomPixels + sourceArea.height + this.topPixels;
         }
 
-        enlarge(sourceArea: Size, dstOffset: Vector2, enlargedArea: Size) {
+        enlarge(sourceArea: Size, dstOffset: Vector4, enlargedArea: Size) {
             this._computePixels(0, sourceArea, true);
             this._computePixels(1, sourceArea, true);
             this._computePixels(2, sourceArea, true);
@@ -1278,6 +1281,9 @@
 
             dstOffset.y = this.bottomPixels;
             enlargedArea.height = sourceArea.height + (dstOffset.y + this.topPixels);
+
+            dstOffset.z = this.rightPixels;
+            dstOffset.w = this.topPixels;
         }
     }
 
@@ -1353,7 +1359,7 @@
      * Base class for a Primitive of the Canvas2D feature
      */
     export class Prim2DBase extends SmartPropertyPrim {
-        static PRIM2DBASE_PROPCOUNT: number = 24;
+        static PRIM2DBASE_PROPCOUNT: number = 25;
 
         public  static _bigInt = Math.pow(2, 30);
 
@@ -1662,6 +1668,14 @@
             return this._id;
         }
 
+        public set id(value: string) {
+            if (this._id === value) {
+                return;
+            }
+            let oldValue = this._id;
+            this.onPropertyChanged("id", oldValue, this._id);
+        }
+
         /**
          * Metadata of the position property
          */
@@ -1763,7 +1777,7 @@
         public static paddingProperty: Prim2DPropInfo;
 
         /**
-         * Metadata of the hAlignment property
+         * Metadata of the marginAlignment property
          */
         public static marginAlignmentProperty: Prim2DPropInfo;
 
@@ -1783,9 +1797,15 @@
          */
         public static scaleYProperty: Prim2DPropInfo;
 
+        /**
+         * Metadata of the actualScale property
+         */
+        public static actualScaleProperty: Prim2DPropInfo;
+
         @instanceLevelProperty(1, pi => Prim2DBase.actualPositionProperty = pi, false, false, true)
         /**
-         * Return the position where the primitive is rendered in the Canvas, this position may be different than the one returned by the position property due to layout/alignment/margin/padding computing
+         * Return the position where the primitive is rendered in the Canvas, this position may be different than the one returned by the position property due to layout/alignment/margin/padding computing.
+         * BEWARE: don't change this value, it's read-only!
          */
         public get actualPosition(): Vector2 {
             if (this._actualPosition != null) {
@@ -1841,7 +1861,10 @@
          */
         @dynamicLevelProperty(SmartPropertyPrim.SMARTPROPERTYPRIM_PROPCOUNT + 3, pi => Prim2DBase.positionProperty = pi, false, false, true)
         public get position(): Vector2 {
-            return this._position || Prim2DBase._nullPosition;
+            if (!this._position) {
+                this._position = Vector2.Zero();
+            }
+            return this._position;
         }
 
         public set position(value: Vector2) {
@@ -2066,7 +2089,7 @@
          */
         @dynamicLevelProperty(SmartPropertyPrim.SMARTPROPERTYPRIM_PROPCOUNT + 13, pi => Prim2DBase.actualHeightProperty = pi, false, true)
         public get actualHeight(): number {
-            return this.actualSize.width;
+            return this.actualSize.height;
         }
 
         public set actualHeight(val: number) {
@@ -2316,7 +2339,7 @@
             return this._scale.y;
         }
 
-        private _spreadActualScaleDirty() {
+        protected _spreadActualScaleDirty() {
             for (let child of this._children) {
                 child._setFlags(SmartPropertyPrim.flagActualScaleDirty);
                 child._spreadActualScaleDirty();
@@ -2326,6 +2349,7 @@
         /**
          * Returns the actual scale of this Primitive, the value is computed from the scale property of this primitive, multiplied by the actualScale of its parent one (if any). The Vector2 object returned contains the scale for both X and Y axis
          */
+        @instanceLevelProperty(SmartPropertyPrim.SMARTPROPERTYPRIM_PROPCOUNT + 24, pi => Prim2DBase.actualScaleProperty = pi, false, true)
         public get actualScale(): Vector2 {
             if (this._isFlagSet(SmartPropertyPrim.flagActualScaleDirty)) {
                 let cur = this._isFlagSet(SmartPropertyPrim.flagDontInheritParentScale) ? null : this.parent;
@@ -2409,7 +2433,7 @@
             }
             this._positioningDirty();
             if (this.parent) {
-                this.parent._setFlags(SmartPropertyPrim.flagLayoutBoundingInfoDirty);
+                this.parent._setFlags(SmartPropertyPrim.flagLayoutBoundingInfoDirty | SmartPropertyPrim.flagGlobalTransformDirty);
             }
             this._layoutArea = val;
         }
@@ -2419,7 +2443,10 @@
          * The setter should only be called by a Layout Engine class.
          */
         public get layoutAreaPos(): Vector2 {
-            return this._layoutAreaPos || Prim2DBase._nullPosition;
+            if (!this._layoutAreaPos) {
+                this._layoutAreaPos = Vector2.Zero();
+            }
+            return this._layoutAreaPos;
         }
 
         public set layoutAreaPos(val: Vector2) {
@@ -2427,7 +2454,7 @@
                 return;
             }
             if (this.parent) {
-                this.parent._setFlags(SmartPropertyPrim.flagLayoutBoundingInfoDirty);
+                this.parent._setFlags(SmartPropertyPrim.flagLayoutBoundingInfoDirty | SmartPropertyPrim.flagGlobalTransformDirty);
             }
             this._positioningDirty();
             this._layoutAreaPos = val;
@@ -2649,7 +2676,7 @@
 
                 this._debugAreaGroup = new Group2D
                     (
-                    {
+                    {   dontInheritParentScale: true,
                         parent: (this.parent!=null) ? this.parent : this, id: "###DEBUG AREA GROUP###", children:
                         [
                             new Group2D({
@@ -2751,11 +2778,13 @@
                 areaInfo[curAreaIndex++] = { off: pos, size: size, min: min, max: max };
             }
 
+            let isCanvas = this instanceof Canvas2D;
             let marginH = this._marginOffset.x + this._marginOffset.z;
             let marginV = this._marginOffset.y + this._marginOffset.w;
+            let actualSize = this.actualSize.multiplyByFloats(isCanvas ? 1 : this.scaleX, isCanvas ? 1 : this.scaleY);
 
-            let w = hasLayout ? (this.layoutAreaPos.x + this.layoutArea.width)  : (marginH + this.actualSize.width);
-            let h = hasLayout ? (this.layoutAreaPos.y + this.layoutArea.height) : (marginV + this.actualSize.height);
+            let w = hasLayout ? (this.layoutAreaPos.x + this.layoutArea.width)  : (marginH + actualSize.width);
+            let h = hasLayout ? (this.layoutAreaPos.y + this.layoutArea.height) : (marginV + actualSize.height);
             let pos = (!hasLayout && !hasMargin && !hasPadding && hasPos) ? this.actualPosition : Vector2.Zero();
 
             storeAreaInfo(pos, new Size(w, h));
@@ -2764,7 +2793,7 @@
             if (hasLayout) {
                 let layoutOffset = this.layoutAreaPos.clone();
 
-                storeAreaInfo(layoutOffset, (hasMargin || hasPadding) ? this.layoutArea.clone() : this.actualSize.clone());
+                storeAreaInfo(layoutOffset, (hasMargin || hasPadding) ? this.layoutArea.clone() : actualSize.clone());
                 curOffset = layoutOffset.clone();
             }
 
@@ -2773,7 +2802,7 @@
                 let marginOffset = curOffset.clone();
                 marginOffset.x += this._marginOffset.x;
                 marginOffset.y += this._marginOffset.y;
-                let marginArea = this.actualSize;
+                let marginArea = actualSize;
 
                 storeAreaInfo(marginOffset, marginArea);
                 curOffset = marginOffset.clone();
@@ -2913,6 +2942,8 @@
          * Make an intersection test with the primitive, all inputs/outputs are stored in the IntersectInfo2D class, see its documentation for more information.
          * @param intersectInfo contains the settings of the intersection to perform, to setup before calling this method as well as the result, available after a call to this method.
          */
+        private static _bypassGroup2DExclusion = false;
+
         public intersect(intersectInfo: IntersectInfo2D): boolean {
             if (!intersectInfo) {
                 return false;
@@ -2929,14 +2960,27 @@
                 intersectInfo.topMostIntersectedPrimitive = null;
             }
 
+            if (!Prim2DBase._bypassGroup2DExclusion && this instanceof Group2D && (<Group2D><any>this).isCachedGroup && !(<Group2D><any>this).isRenderableGroup) {
+                // Important to call this before each return to allow a good recursion next time this intersectInfo is reused
+                intersectInfo._exit(firstLevel);
+                return false;
+            }
+
             if (!intersectInfo.intersectHidden && !this.isVisible) {
+                // Important to call this before each return to allow a good recursion next time this intersectInfo is reused
+                intersectInfo._exit(firstLevel);
                 return false;
             }
 
             let id = this.id;
-            if (id!=null && id.indexOf("__cachedSpriteOfGroup__") === 0) {
-                let ownerGroup = this.getExternalData<Group2D>("__cachedGroup__");
-                return ownerGroup.intersect(intersectInfo);
+            if (id != null && id.indexOf("__cachedSpriteOfGroup__") === 0) {
+                try {
+                    Prim2DBase._bypassGroup2DExclusion = true;
+                    let ownerGroup = this.getExternalData<Group2D>("__cachedGroup__");
+                    return ownerGroup.intersect(intersectInfo);
+                } finally  {
+                    Prim2DBase._bypassGroup2DExclusion = false;
+                } 
             }
 
             // If we're testing a cachedGroup, we must reject pointer outside its levelBoundingInfo because children primitives could be partially clipped outside so we must not accept them as intersected when it's the case (because they're not visually visible).
@@ -3079,6 +3123,11 @@
         public dispose(): boolean {
             if (!super.dispose()) {
                 return false;
+            }
+
+            if (this._pointerEventObservable) {
+                this._pointerEventObservable.clear();
+                this._pointerEventObservable = null;
             }
 
             if (this._actionManager) {
@@ -3423,13 +3472,12 @@
                 this.actualSize = Prim2DBase._size.clone();
             }
 
-            let po = new Vector2(this._paddingOffset.x, this._paddingOffset.y);
             if (this._hasPadding) {
-                // Two cases from here: the size of the Primitive is Auto, its content can't be shrink, so me resize the primitive itself
+                // Two cases from here: the size of the Primitive is Auto, its content can't be shrink, so we resize the primitive itself
                 if (isSizeAuto) {
                     let content = this.size.clone();
                     this._getActualSizeFromContentToRef(content, Prim2DBase._icArea);
-                    this.padding.enlarge(Prim2DBase._icArea, po, Prim2DBase._size);
+                    this.padding.enlarge(Prim2DBase._icArea, this._paddingOffset, Prim2DBase._size);
                     this._contentArea.copyFrom(content);
                     this.actualSize = Prim2DBase._size.clone();
 
@@ -3442,9 +3490,7 @@
                     this._getInitialContentAreaToRef(this.actualSize, Prim2DBase._icZone, Prim2DBase._icArea);
                     Prim2DBase._icArea.width = Math.max(0, Prim2DBase._icArea.width);
                     Prim2DBase._icArea.height = Math.max(0, Prim2DBase._icArea.height);
-                    this.padding.compute(Prim2DBase._icArea, po, Prim2DBase._size);
-                    this._paddingOffset.x = po.x;
-                    this._paddingOffset.y = po.y;
+                    this.padding.compute(Prim2DBase._icArea, this._paddingOffset, Prim2DBase._size);
                     this._paddingOffset.x += Prim2DBase._icZone.x;
                     this._paddingOffset.y += Prim2DBase._icZone.y;
                     this._paddingOffset.z -= Prim2DBase._icZone.z;
@@ -3458,7 +3504,7 @@
                 this._paddingOffset.x = Prim2DBase._icZone.x;
                 this._paddingOffset.y = Prim2DBase._icZone.y;
                 this._paddingOffset.z = Prim2DBase._icZone.z;
-                this._paddingOffset.w = Prim2DBase._icZone.z;
+                this._paddingOffset.w = Prim2DBase._icZone.w;
                 this._contentArea.copyFrom(Prim2DBase._icArea);
             }
 
