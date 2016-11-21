@@ -1023,6 +1023,18 @@
             return new Vector3(0, 1.0, 0);
         }
 
+        public static Forward(): Vector3 {
+            return new Vector3(0, 0, 1.0);
+        }
+
+        public static Right(): Vector3 {
+            return new Vector3(1.0, 0, 0);
+        }
+
+        public static Left(): Vector3 {
+            return new Vector3(-1.0, 0, 0);
+        }
+
         public static TransformCoordinates(vector: Vector3, transformation: Matrix): Vector3 {
             var result = Vector3.Zero();
 
@@ -1062,9 +1074,12 @@
         }
 
         public static TransformNormalToRef(vector: Vector3, transformation: Matrix, result: Vector3): void {
-            result.x = (vector.x * transformation.m[0]) + (vector.y * transformation.m[4]) + (vector.z * transformation.m[8]);
-            result.y = (vector.x * transformation.m[1]) + (vector.y * transformation.m[5]) + (vector.z * transformation.m[9]);
-            result.z = (vector.x * transformation.m[2]) + (vector.y * transformation.m[6]) + (vector.z * transformation.m[10]);
+            var x = (vector.x * transformation.m[0]) + (vector.y * transformation.m[4]) + (vector.z * transformation.m[8]);
+            var y = (vector.x * transformation.m[1]) + (vector.y * transformation.m[5]) + (vector.z * transformation.m[9]);
+            var z = (vector.x * transformation.m[2]) + (vector.y * transformation.m[6]) + (vector.z * transformation.m[10]);
+            result.x = x;
+            result.y = y;
+            result.z = z;
         }
 
         public static TransformNormalFromFloatsToRef(x: number, y: number, z: number, transformation: Matrix, result: Vector3): void {
@@ -1910,24 +1925,19 @@
 
         public toEulerAnglesToRef(result: Vector3, order = "YZX"): Quaternion {
             
+            var qz = this.z;
             var qx = this.x;
             var qy = this.y;
-            var qz = this.z;
             var qw = this.w;
-            var xsqr = qx * qx;
 
-            var t0 = -2.0 * (xsqr + qy * qy) + 1.0;
-            var t1 = 2.0 * (qz * qx + qw * qy);
-            var t2 = -2.0 * (qz * qy - qw * qx);
-            var t3 = 2.0 * (qx * qy + qw * qz);
-            var t4 = -2.0 * (qz * qz + xsqr) + 1.0;
+            var sqw = qw * qw;
+            var sqz = qz * qz;
+            var sqx = qx * qx;
+            var sqy = qy * qy;
 
-            t2 = t2 > 1.0 ? 1.0 : t2;
-            t2 = t2 < -1.0 ? -1.0 : t2;
-
-            result.x = Math.asin(t2);
-            result.z = Math.atan2(t3, t4);
-            result.y = Math.atan2(t1, t0);
+            result.z = Math.atan2(2.0 * (qx * qy + qz * qw), (-sqz - sqx + sqy + sqw));
+            result.x = Math.asin(-2.0 * (qz * qy - qx * qw));
+            result.y = Math.atan2(2.0 * (qz * qx + qy * qw), (sqz - sqx - sqy + sqw));
 
             return this;
             
@@ -3101,6 +3111,68 @@
             result.m[14] = temp3 * plane.d;
             result.m[15] = 1.0;
         }
+
+        public static FromXYZAxesToRef(xaxis: Vector3, yaxis: Vector3, zaxis: Vector3, mat: Matrix) {
+            
+            mat.m[0] = xaxis.x;
+            mat.m[1] = xaxis.y;
+            mat.m[2] = xaxis.z;
+
+            mat.m[3] = 0;
+            
+            mat.m[4] = yaxis.x;
+            mat.m[5] = yaxis.y;
+            mat.m[6] = yaxis.z;
+            
+            mat.m[7] = 0;
+            
+            mat.m[8] = zaxis.x;
+            mat.m[9] = zaxis.y;
+            mat.m[10] = zaxis.z;
+            
+            mat.m[11] = 0;
+            
+            mat.m[12] = 0;
+            mat.m[13] = 0;
+            mat.m[14] = 0;
+            
+            mat.m[15] = 1;
+
+        }
+
+        public static FromQuaternionToRef(quat:Quaternion, result:Matrix){
+
+            var xx = quat.x * quat.x;
+            var yy = quat.y * quat.y;
+            var zz = quat.z * quat.z;
+            var xy = quat.x * quat.y;
+            var zw = quat.z * quat.w;
+            var zx = quat.z * quat.x;
+            var yw = quat.y * quat.w;
+            var yz = quat.y * quat.z;
+            var xw = quat.x * quat.w;
+
+            result.m[0] = 1.0 - (2.0 * (yy + zz));
+            result.m[1] = 2.0 * (xy + zw);
+            result.m[2] = 2.0 * (zx - yw);
+            result.m[3] = 0;
+            result.m[4] = 2.0 * (xy - zw);
+            result.m[5] = 1.0 - (2.0 * (zz + xx));
+            result.m[6] = 2.0 * (yz + xw);
+            result.m[7] = 0;
+            result.m[8] = 2.0 * (zx + yw);
+            result.m[9] = 2.0 * (yz - xw);
+            result.m[10] = 1.0 - (2.0 * (yy + xx));
+            result.m[11] = 0;
+
+            result.m[12] = 0;
+            result.m[13] = 0;
+            result.m[14] = 0;
+
+            result.m[15] = 1.0;
+
+        }
+
     }
 
     export class Plane {

@@ -968,7 +968,7 @@ var BABYLON;
                 engine.setAlphaMode(effectiveMaterial.alphaMode);
             }
             // Draw
-            this._processRendering(subMesh, effect, fillMode, batch, hardwareInstancedRendering, this._onBeforeDraw);
+            this._processRendering(subMesh, effect, fillMode, batch, hardwareInstancedRendering, this._onBeforeDraw, effectiveMaterial);
             // Unbind
             effectiveMaterial.unbind();
             // Outline - step 2
@@ -2232,7 +2232,9 @@ var BABYLON;
                 return this;
             }
             if (!this._sourcePositions) {
+                var submeshes = this.subMeshes.slice();
                 this.setPositionsForCPUSkinning();
+                this.subMeshes = submeshes;
             }
             if (!this._sourceNormals) {
                 this.setNormalsForCPUSkinning();

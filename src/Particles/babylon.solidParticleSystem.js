@@ -8,9 +8,12 @@ var BABYLON;
         * Creates a SPS (Solid Particle System) object.
         * `name` (String) is the SPS name, this will be the underlying mesh name.
         * `scene` (Scene) is the scene in which the SPS is added.
-        * `updatable` (default true) : if the SPS must be updatable or immutable.
-        * `isPickable` (default false) : if the solid particles must be pickable.
-        * `particleIntersection` (default false) : if the solid particle intersections must be computed
+        * `updatable` (optional boolean, default true) : if the SPS must be updatable or immutable.
+        * `isPickable` (optional boolean, default false) : if the solid particles must be pickable.
+        * `particleIntersection` (optional boolean, default false) : if the solid particle intersections must be computed.
+        * `boundingSphereOnly` (optional boolean, default false) : if the particle intersection must be computed only with the bounding sphere (no bounding box computation, so faster).
+        * `bSphereRadiusFactor` (optional float, default 1.0) : a number to multiply the boundind sphere radius by in order to reduce it for instance.
+        *  Example : bSphereRadiusFactor = 1.0 / Math.sqrt(3.0) => the bounding sphere exactly matches a spherical mesh.
         */
         function SolidParticleSystem(name, scene, options) {
             // public members
@@ -51,7 +54,7 @@ var BABYLON;
             this._isVisibilityBoxLocked = false;
             this._alwaysVisible = false;
             this._shapeCounter = 0;
-            this._copy = new BABYLON.SolidParticle(null, null, null, null, null);
+            this._copy = new BABYLON.SolidParticle(null, null, null, null, null, null);
             this._color = new BABYLON.Color4(0, 0, 0, 0);
             this._computeParticleColor = true;
             this._computeParticleTexture = true;
@@ -88,12 +91,18 @@ var BABYLON;
             this._maximum = BABYLON.Tmp.Vector3[1];
             this._scale = BABYLON.Tmp.Vector3[2];
             this._translation = BABYLON.Tmp.Vector3[3];
+            this._minBbox = BABYLON.Tmp.Vector3[4];
+            this._maxBbox = BABYLON.Tmp.Vector3[5];
             this._particlesIntersect = false;
+            this._bSphereOnly = false;
+            this._bSphereRadiusFactor = 1.0;
             this.name = name;
             this._scene = scene;
             this._camera = scene.activeCamera;
             this._pickable = options ? options.isPickable : false;
             this._particlesIntersect = options ? options.particleIntersection : false;
+            this._bSphereOnly = options ? options.boundingSphereOnly : false;
+            this._bSphereRadiusFactor = (options && options.bSphereRadiusFactor) ? options.bSphereRadiusFactor : 1.0;
             if (options && options.updatable) {
                 this._updatable = options.updatable;
             }
@@ -137,7 +146,6 @@ var BABYLON;
             vertexData.applyToMesh(mesh, this._updatable);
             this.mesh = mesh;
             this.mesh.isPickable = this._pickable;
-            this._wm = this.mesh.getWorldMatrix();
             // free memory
             this._positions = null;
             this._normals = null;
@@ -349,7 +357,7 @@ var BABYLON;
         };
         // adds a new particle object in the particles array
         SolidParticleSystem.prototype._addParticle = function (idx, idxpos, model, shapeId, idxInShape, bInfo) {
-            this.particles.push(new BABYLON.SolidParticle(idx, idxpos, model, shapeId, idxInShape, bInfo));
+            this.particles.push(new BABYLON.SolidParticle(idx, idxpos, model, shapeId, idxInShape, this, bInfo));
         };
         /**
         * Adds some particles to the SPS from the model shape. Returns the shape id.
@@ -469,7 +477,7 @@ var BABYLON;
             // if the particles will always face the camera
             if (this.billboard) {
                 // compute the camera position and un-rotate it by the current mesh rotation
-                if (this._wm.decompose(this._scale, this._quaternion, this._translation)) {
+                if (this.mesh._worldMatrix.decompose(this._scale, this._quaternion, this._translation)) {
                     this._quaternionToRotationMatrix();
                     this._rotMatrix.invertToRef(this._invertMatrix);
                     this._camera._currentTarget.subtractToRef(this._camera.globalPosition, this._camDir);
@@ -615,9 +623,9 @@ var BABYLON;
                     var bInfo = this._particle._boundingInfo;
                     var bBox = bInfo.boundingBox;
                     var bSphere = bInfo.boundingSphere;
-                    // place, scale and rotate the particle bbox within the SPS local system
-                    for (var b = 0; b < bBox.vectors.length; b++) {
-                        if (this._particle.isVisible) {
+                    if (!this._bSphereOnly) {
+                        // place, scale and rotate the particle bbox within the SPS local system, then update it
+                        for (var b = 0; b < bBox.vectors.length; b++) {
                             this._vertex.x = this._particle._modelBoundingInfo.boundingBox.vectors[b].x * this._particle.scaling.x;
                             this._vertex.y = this._particle._modelBoundingInfo.boundingBox.vectors[b].y * this._particle.scaling.y;
                             this._vertex.z = this._particle._modelBoundingInfo.boundingBox.vectors[b].z * this._particle.scaling.z;
@@ -629,34 +637,20 @@ var BABYLON;
                             bBox.vectors[b].y = this._particle.position.y + this._cam_axisX.y * this._rotated.x + this._cam_axisY.y * this._rotated.y + this._cam_axisZ.y * this._rotated.z;
                             bBox.vectors[b].z = this._particle.position.z + this._cam_axisX.z * this._rotated.x + this._cam_axisY.z * this._rotated.y + this._cam_axisZ.z * this._rotated.z;
                         }
-                        else {
-                            bBox.vectors[b].x = this._camera.position.x;
-                            bBox.vectors[b].y = this._camera.position.y;
-                            bBox.vectors[b].z = this._camera.position.z;
-                        }
+                        bBox._update(this.mesh._worldMatrix);
                     }
-                    // place and scale the particle bouding sphere in the SPS local system
-                    if (this._particle.isVisible) {
-                        this._minimum.x = this._particle._modelBoundingInfo.minimum.x * this._particle.scaling.x;
-                        this._minimum.y = this._particle._modelBoundingInfo.minimum.y * this._particle.scaling.y;
-                        this._minimum.z = this._particle._modelBoundingInfo.minimum.z * this._particle.scaling.z;
-                        this._maximum.x = this._particle._modelBoundingInfo.maximum.x * this._particle.scaling.x;
-                        this._maximum.y = this._particle._modelBoundingInfo.maximum.y * this._particle.scaling.y;
-                        this._maximum.z = this._particle._modelBoundingInfo.maximum.z * this._particle.scaling.z;
-                        bSphere.center.x = this._particle.position.x + (this._minimum.x + this._maximum.x) * 0.5;
-                        bSphere.center.y = this._particle.position.y + (this._minimum.y + this._maximum.y) * 0.5;
-                        bSphere.center.z = this._particle.position.z + (this._minimum.z + this._maximum.z) * 0.5;
-                        bSphere.radius = BABYLON.Vector3.Distance(this._minimum, this._maximum) * 0.5;
-                    }
-                    else {
-                        bSphere.center.x = this._camera.position.x;
-                        bSphere.center.y = this._camera.position.x;
-                        bSphere.center.z = this._camera.position.x;
-                        bSphere.radius = 0.0;
-                    }
-                    // then update the bbox and the bsphere into the world system
-                    bBox._update(this._wm);
-                    bSphere._update(this._wm);
+                    // place and scale the particle bouding sphere in the SPS local system, then update it
+                    this._minBbox.x = this._particle._modelBoundingInfo.minimum.x * this._particle.scaling.x;
+                    this._minBbox.y = this._particle._modelBoundingInfo.minimum.y * this._particle.scaling.y;
+                    this._minBbox.z = this._particle._modelBoundingInfo.minimum.z * this._particle.scaling.z;
+                    this._maxBbox.x = this._particle._modelBoundingInfo.maximum.x * this._particle.scaling.x;
+                    this._maxBbox.y = this._particle._modelBoundingInfo.maximum.y * this._particle.scaling.y;
+                    this._maxBbox.z = this._particle._modelBoundingInfo.maximum.z * this._particle.scaling.z;
+                    bSphere.center.x = this._particle.position.x + (this._minBbox.x + this._maxBbox.x) * 0.5;
+                    bSphere.center.y = this._particle.position.y + (this._minBbox.y + this._maxBbox.y) * 0.5;
+                    bSphere.center.z = this._particle.position.z + (this._minBbox.z + this._maxBbox.z) * 0.5;
+                    bSphere.radius = this._bSphereRadiusFactor * 0.5 * Math.sqrt((this._maxBbox.x - this._minBbox.x) * (this._maxBbox.x - this._minBbox.x) + (this._maxBbox.y - this._minBbox.y) * (this._maxBbox.y - this._minBbox.y) + (this._maxBbox.z - this._minBbox.z) * (this._maxBbox.z - this._minBbox.z));
+                    bSphere._update(this.mesh._worldMatrix);
                 }
                 // increment indexes for the next particle
                 index = idx + 3;

@@ -57,6 +57,10 @@ var BABYLON;
              */
             this.outerGlow = true;
             /**
+             * Specifies wether the highlight layer is enabled or not.
+             */
+            this.isEnabled = true;
+            /**
              * An event triggered when the highlight layer has been disposed.
              * @type {BABYLON.Observable}
              */
@@ -307,7 +311,7 @@ var BABYLON;
          * @return true if ready otherwise, false
          */
         HighlightLayer.prototype.isReady = function (subMesh, useInstances, emissiveTexture) {
-            if (!subMesh.getMaterial().isReady()) {
+            if (!subMesh.getMaterial().isReady(subMesh.getMesh(), useInstances)) {
                 return false;
             }
             var defines = [];
@@ -521,17 +525,23 @@ var BABYLON;
          * Returns true if the layer contains information to display, otherwise false.
          */
         HighlightLayer.prototype.shouldRender = function () {
-            return this._shouldRender;
+            return this.isEnabled && this._shouldRender;
         };
         /**
          * Sets the main texture desired size which is the closest power of two
          * of the engine canvas size.
          */
         HighlightLayer.prototype.setMainTextureSize = function () {
-            this._mainTextureDesiredSize.width = this._engine.getRenderingCanvas().width * this._options.mainTextureRatio;
-            this._mainTextureDesiredSize.height = this._engine.getRenderingCanvas().height * this._options.mainTextureRatio;
-            this._mainTextureDesiredSize.width = BABYLON.Tools.GetExponentOfTwo(this._mainTextureDesiredSize.width, this._maxSize);
-            this._mainTextureDesiredSize.height = BABYLON.Tools.GetExponentOfTwo(this._mainTextureDesiredSize.height, this._maxSize);
+            if (this._options.mainTextureFixedSize) {
+                this._mainTextureDesiredSize.width = this._options.mainTextureFixedSize;
+                this._mainTextureDesiredSize.height = this._options.mainTextureFixedSize;
+            }
+            else {
+                this._mainTextureDesiredSize.width = this._engine.getRenderingCanvas().width * this._options.mainTextureRatio;
+                this._mainTextureDesiredSize.height = this._engine.getRenderingCanvas().height * this._options.mainTextureRatio;
+                this._mainTextureDesiredSize.width = BABYLON.Tools.GetExponentOfTwo(this._mainTextureDesiredSize.width, this._maxSize);
+                this._mainTextureDesiredSize.height = BABYLON.Tools.GetExponentOfTwo(this._mainTextureDesiredSize.height, this._maxSize);
+            }
         };
         /**
          * Force the stencil to the normal expected value for none glowing parts

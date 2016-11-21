@@ -13,7 +13,7 @@ var BABYLON;
 (function (BABYLON) {
     var Texture = (function (_super) {
         __extends(Texture, _super);
-        function Texture(url, scene, noMipmap, invertY, samplingMode, onLoad, onError, buffer, deleteBuffer) {
+        function Texture(urlOrList, scene, noMipmap, invertY, samplingMode, onLoad, onError, buffer, deleteBuffer) {
             var _this = this;
             if (noMipmap === void 0) { noMipmap = false; }
             if (invertY === void 0) { invertY = true; }
@@ -30,8 +30,10 @@ var BABYLON;
             this.uAng = 0;
             this.vAng = 0;
             this.wAng = 0;
+            var url = ((urlOrList instanceof Array) ? urlOrList[0] : urlOrList);
             this.name = url;
             this.url = url;
+            this._delayReloadData = urlOrList;
             this._noMipmap = noMipmap;
             this._invertY = invertY;
             this._samplingMode = samplingMode;
@@ -51,7 +53,7 @@ var BABYLON;
             };
             if (!this._texture) {
                 if (!scene.useDelayedTextureLoading) {
-                    this._texture = scene.getEngine().createTexture(url, noMipmap, invertY, scene, this._samplingMode, load, onError, this._buffer);
+                    this._texture = scene.getEngine().createTexture(urlOrList, noMipmap, invertY, scene, this._samplingMode, load, onError, this._buffer);
                     if (deleteBuffer) {
                         delete this._buffer;
                     }
@@ -85,7 +87,7 @@ var BABYLON;
             this.delayLoadState = BABYLON.Engine.DELAYLOADSTATE_LOADED;
             this._texture = this._getFromCache(this.url, this._noMipmap, this._samplingMode);
             if (!this._texture) {
-                this._texture = this.getScene().getEngine().createTexture(this.url, this._noMipmap, this._invertY, this.getScene(), this._samplingMode, this._delayedOnLoad, this._delayedOnError, this._buffer);
+                this._texture = this.getScene().getEngine().createTexture(this._delayReloadData, this._noMipmap, this._invertY, this.getScene(), this._samplingMode, this._delayedOnLoad, this._delayedOnError, this._buffer);
                 if (this._deleteBuffer) {
                     delete this._buffer;
                 }
@@ -213,6 +215,10 @@ var BABYLON;
             return new Texture("data:" + name, scene, noMipmap, invertY, samplingMode, onLoad, onError, data);
         };
         Texture.Parse = function (parsedTexture, scene, rootUrl) {
+            if (parsedTexture.customType) {
+                var customTexture = BABYLON.Tools.Instantiate(parsedTexture.customType);
+                return customTexture.Parse(parsedTexture, scene, rootUrl);
+            }
             if (parsedTexture.isCube) {
                 return BABYLON.CubeTexture.Parse(parsedTexture, scene, rootUrl);
             }
@@ -220,11 +226,7 @@ var BABYLON;
                 return null;
             }
             var texture = BABYLON.SerializationHelper.Parse(function () {
-                if (parsedTexture.customType) {
-                    var customTexture = BABYLON.Tools.Instantiate(parsedTexture.customType);
-                    return customTexture.Parse(parsedTexture, scene, rootUrl);
-                }
-                else if (parsedTexture.mirrorPlane) {
+                if (parsedTexture.mirrorPlane) {
                     var mirrorTexture = new BABYLON.MirrorTexture(parsedTexture.name, parsedTexture.renderTargetSize, scene);
                     mirrorTexture._waitingRenderList = parsedTexture.renderList;
                     mirrorTexture.mirrorPlane = BABYLON.Plane.FromArray(parsedTexture.mirrorPlane);
@@ -240,6 +242,12 @@ var BABYLON;
                     if (parsedTexture.base64String) {
                         texture = Texture.CreateFromBase64String(parsedTexture.base64String, parsedTexture.name, scene);
                     }
+                    else if (parsedTexture.name instanceof Array) {
+                        for (var i = 0, len = parsedTexture.name.length; i < len; i++) {
+                            parsedTexture.name[i] = rootUrl + parsedTexture.name[i];
+                        }
+                        texture = new Texture(parsedTexture.name, scene);
+                    }
                     else {
                         texture = new Texture(rootUrl + parsedTexture.name, scene);
                     }
@@ -254,6 +262,18 @@ var BABYLON;
                 }
             }
             return texture;
+        };
+        Texture.LoadFromDataString = function (name, buffer, scene, deleteBuffer, noMipmap, invertY, samplingMode, onLoad, onError) {
+            if (deleteBuffer === void 0) { deleteBuffer = false; }
+            if (noMipmap === void 0) { noMipmap = false; }
+            if (invertY === void 0) { invertY = true; }
+            if (samplingMode === void 0) { samplingMode = Texture.TRILINEAR_SAMPLINGMODE; }
+            if (onLoad === void 0) { onLoad = null; }
+            if (onError === void 0) { onError = null; }
+            if (name.substr(0, 5) !== "data:") {
+                name = "data:" + name;
+            }
+            return new Texture(name, scene, noMipmap, invertY, samplingMode, onLoad, onError, buffer, deleteBuffer);
         };
         // Constants
         Texture.NEAREST_SAMPLINGMODE = 1;

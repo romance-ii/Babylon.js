@@ -136,6 +136,8 @@ var BABYLON;
             this.constantlyUpdateMeshUnderPointer = false;
             this.useRightHandedSystem = false;
             this.hoverCursor = "pointer";
+            // Metadata
+            this.metadata = null;
             // Events
             /**
             * An event triggered when the scene is disposed.
@@ -346,6 +348,8 @@ var BABYLON;
             this._uniqueIdCounter = 0;
             this._engine = engine;
             engine.scenes.push(this);
+            this._externalData = new BABYLON.StringDictionary();
+            this._uid = null;
             this._renderingManager = new BABYLON.RenderingManager(this);
             this.postProcessManager = new BABYLON.PostProcessManager(this);
             this.postProcessRenderPipelineManager = new BABYLON.PostProcessRenderPipelineManager();
@@ -694,7 +698,12 @@ var BABYLON;
                     _this.setPointerOverSprite(null);
                     _this.setPointerOverMesh(pickResult.pickedMesh);
                     if (_this._pointerOverMesh.actionManager && _this._pointerOverMesh.actionManager.hasPointerTriggers) {
-                        canvas.style.cursor = _this.hoverCursor;
+                        if (_this._pointerOverMesh.actionManager.hoverCursor) {
+                            canvas.style.cursor = _this._pointerOverMesh.actionManager.hoverCursor;
+                        }
+                        else {
+                            canvas.style.cursor = _this.hoverCursor;
+                        }
                     }
                     else {
                         canvas.style.cursor = "";
@@ -705,8 +714,13 @@ var BABYLON;
                     // Sprites
                     pickResult = _this.pickSprite(_this._unTranslatedPointerX, _this._unTranslatedPointerY, spritePredicate, false, _this.cameraToUseForPointers);
                     if (pickResult.hit && pickResult.pickedSprite) {
-                        canvas.style.cursor = _this.hoverCursor;
                         _this.setPointerOverSprite(pickResult.pickedSprite);
+                        if (_this._pointerOverSprite.actionManager && _this._pointerOverSprite.actionManager.hoverCursor) {
+                            canvas.style.cursor = _this._pointerOverSprite.actionManager.hoverCursor;
+                        }
+                        else {
+                            canvas.style.cursor = _this.hoverCursor;
+                        }
                     }
                     else {
                         _this.setPointerOverSprite(null);
@@ -1573,6 +1587,55 @@ var BABYLON;
         Scene.prototype.isActiveMesh = function (mesh) {
             return (this._activeMeshes.indexOf(mesh) !== -1);
         };
+        Object.defineProperty(Scene.prototype, "uid", {
+            /**
+             * Return a unique id as a string which can serve as an identifier for the scene
+             */
+            get: function () {
+                if (!this._uid) {
+                    this._uid = BABYLON.Tools.RandomId();
+                }
+                return this._uid;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        /**
+         * Add an externaly attached data from its key.
+         * This method call will fail and return false, if such key already exists.
+         * If you don't care and just want to get the data no matter what, use the more convenient getOrAddExternalDataWithFactory() method.
+         * @param key the unique key that identifies the data
+         * @param data the data object to associate to the key for this Engine instance
+         * @return true if no such key were already present and the data was added successfully, false otherwise
+         */
+        Scene.prototype.addExternalData = function (key, data) {
+            return this._externalData.add(key, data);
+        };
+        /**
+         * Get an externaly attached data from its key
+         * @param key the unique key that identifies the data
+         * @return the associated data, if present (can be null), or undefined if not present
+         */
+        Scene.prototype.getExternalData = function (key) {
+            return this._externalData.get(key);
+        };
+        /**
+         * Get an externaly attached data from its key, create it using a factory if it's not already present
+         * @param key the unique key that identifies the data
+         * @param factory the factory that will be called to create the instance if and only if it doesn't exists
+         * @return the associated data, can be null if the factory returned null.
+         */
+        Scene.prototype.getOrAddExternalDataWithFactory = function (key, factory) {
+            return this._externalData.getOrAddWithFactory(key, factory);
+        };
+        /**
+         * Remove an externaly attached data from the Engine instance
+         * @param key the unique key that identifies the data
+         * @return true if the data was successfully removed, false if it doesn't exist
+         */
+        Scene.prototype.removeExternalData = function (key) {
+            return this._externalData.remove(key);
+        };
         Scene.prototype._evaluateSubMesh = function (subMesh, mesh) {
             if (mesh.alwaysSelectAsActiveMesh || mesh.subMeshes.length === 1 || subMesh.isInFrustum(this._frustumPlanes)) {
                 var material = subMesh.getMaterial();
@@ -1728,6 +1791,7 @@ var BABYLON;
             }
             // Render targets
             this._renderTargetsDuration.beginMonitoring();
+            var needsRestoreFrameBuffer = false;
             var beforeRenderTargetDate = BABYLON.Tools.Now;
             if (this.renderTargetsEnabled && this._renderTargets.length > 0) {
                 this._intermediateRendering = true;
@@ -1743,7 +1807,33 @@ var BABYLON;
                 BABYLON.Tools.EndPerformanceCounter("Render targets", this._renderTargets.length > 0);
                 this._intermediateRendering = false;
                 this._renderId++;
-                engine.restoreDefaultFramebuffer(); // Restore back buffer
+                needsRestoreFrameBuffer = true; // Restore back buffer
+            }
+            // Render HighlightLayer Texture
+            var stencilState = this._engine.getStencilBuffer();
+            var renderhighlights = false;
+            if (this.renderTargetsEnabled && this.highlightLayers && this.highlightLayers.length > 0) {
+                this._intermediateRendering = true;
+                for (var i = 0; i < this.highlightLayers.length; i++) {
+                    var highlightLayer = this.highlightLayers[i];
+                    if (highlightLayer.shouldRender() &&
+                        (!highlightLayer.camera ||
+                            (highlightLayer.camera.cameraRigMode === BABYLON.Camera.RIG_MODE_NONE && camera === highlightLayer.camera) ||
+                            (highlightLayer.camera.cameraRigMode !== BABYLON.Camera.RIG_MODE_NONE && highlightLayer.camera._rigCameras.indexOf(camera) > -1))) {
+                        renderhighlights = true;
+                        var renderTarget = highlightLayer._mainTexture;
+                        if (renderTarget._shouldRender()) {
+                            this._renderId++;
+                            renderTarget.render(false, false);
+                            needsRestoreFrameBuffer = true;
+                        }
+                    }
+                }
+                this._intermediateRendering = false;
+                this._renderId++;
+            }
+            if (needsRestoreFrameBuffer) {
+                engine.restoreDefaultFramebuffer();
             }
             this._renderTargetsDuration.endMonitoring(false);
             // Prepare Frame
@@ -1765,17 +1855,8 @@ var BABYLON;
             // Render
             BABYLON.Tools.StartPerformanceCounter("Main render");
             // Activate HighlightLayer stencil
-            var stencilState = this._engine.getStencilBuffer();
-            var renderhighlights = false;
-            if (this.highlightLayers && this.highlightLayers.length > 0) {
-                for (var i = 0; i < this.highlightLayers.length; i++) {
-                    var highlightLayer = this.highlightLayers[i];
-                    if ((!highlightLayer.camera || camera == highlightLayer.camera) && highlightLayer.shouldRender()) {
-                        renderhighlights = true;
-                        this._engine.setStencilBuffer(true);
-                        break;
-                    }
-                }
+            if (renderhighlights) {
+                this._engine.setStencilBuffer(true);
             }
             this._renderingManager.render(null, null, true, true);
             // Restore HighlightLayer stencil
@@ -1970,21 +2051,11 @@ var BABYLON;
             if (this._depthRenderer) {
                 this._renderTargets.push(this._depthRenderer.getDepthMap());
             }
-            // HighlightLayer
-            if (this.highlightLayers && this.highlightLayers.length > 0) {
-                for (var i = 0; i < this.highlightLayers.length; i++) {
-                    if (this.highlightLayers[i].shouldRender()) {
-                        this._renderTargets.push(this.highlightLayers[i]._mainTexture);
-                    }
-                }
-            }
             // RenderPipeline
             this.postProcessRenderPipelineManager.update();
             // Multi-cameras?
             if (this.activeCameras.length > 0) {
-                var currentRenderId = this._renderId;
                 for (var cameraIndex = 0; cameraIndex < this.activeCameras.length; cameraIndex++) {
-                    this._renderId = currentRenderId;
                     if (cameraIndex > 0) {
                         this._engine.clear(0, false, true, true);
                     }
@@ -2330,6 +2401,27 @@ var BABYLON;
             }
             return pickingInfo || new BABYLON.PickingInfo();
         };
+        Scene.prototype._internalMultiPick = function (rayFunction, predicate) {
+            var pickingInfos = new Array();
+            for (var meshIndex = 0; meshIndex < this.meshes.length; meshIndex++) {
+                var mesh = this.meshes[meshIndex];
+                if (predicate) {
+                    if (!predicate(mesh)) {
+                        continue;
+                    }
+                }
+                else if (!mesh.isEnabled() || !mesh.isVisible || !mesh.isPickable) {
+                    continue;
+                }
+                var world = mesh.getWorldMatrix();
+                var ray = rayFunction(world);
+                var result = mesh.intersects(ray, false);
+                if (!result || !result.hit)
+                    continue;
+                pickingInfos.push(result);
+            }
+            return pickingInfos;
+        };
         Scene.prototype._internalPickSprites = function (ray, predicate, fastCheck, camera) {
             var pickingInfo = null;
             camera = camera || this.activeCamera;
@@ -2352,23 +2444,23 @@ var BABYLON;
             }
             return pickingInfo || new BABYLON.PickingInfo();
         };
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
         Scene.prototype.pick = function (x, y, predicate, fastCheck, camera) {
             var _this = this;
-            /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
-            /// <param name="x">X position on screen</param>
-            /// <param name="y">Y position on screen</param>
-            /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
-            /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
-            /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
             return this._internalPick(function (world) { return _this.createPickingRay(x, y, world, camera); }, predicate, fastCheck);
         };
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible sprites. Can be set to null. In this case, a sprite must have isPickable set to true</param>
+        /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
         Scene.prototype.pickSprite = function (x, y, predicate, fastCheck, camera) {
-            /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
-            /// <param name="x">X position on screen</param>
-            /// <param name="y">Y position on screen</param>
-            /// <param name="predicate">Predicate function used to determine eligible sprites. Can be set to null. In this case, a sprite must have isPickable set to true</param>
-            /// <param name="fastCheck">Launch a fast check only using the bounding boxes. Can be set to null.</param>
-            /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
             return this._internalPickSprites(this.createPickingRayInCameraSpace(x, y, camera), predicate, fastCheck, camera);
         };
         Scene.prototype.pickWithRay = function (ray, predicate, fastCheck) {
@@ -2380,6 +2472,28 @@ var BABYLON;
                 world.invertToRef(_this._pickWithRayInverseMatrix);
                 return BABYLON.Ray.Transform(ray, _this._pickWithRayInverseMatrix);
             }, predicate, fastCheck);
+        };
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="x">X position on screen</param>
+        /// <param name="y">Y position on screen</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        /// <param name="camera">camera to use for computing the picking ray. Can be set to null. In this case, the scene.activeCamera will be used</param>
+        Scene.prototype.multiPick = function (x, y, predicate, camera) {
+            var _this = this;
+            return this._internalMultiPick(function (world) { return _this.createPickingRay(x, y, world, camera); }, predicate);
+        };
+        /// <summary>Launch a ray to try to pick a mesh in the scene</summary>
+        /// <param name="ray">Ray to use</param>
+        /// <param name="predicate">Predicate function used to determine eligible meshes. Can be set to null. In this case, a mesh must be enabled, visible and with isPickable set to true</param>
+        Scene.prototype.multiPickWithRay = function (ray, predicate) {
+            var _this = this;
+            return this._internalMultiPick(function (world) {
+                if (!_this._pickWithRayInverseMatrix) {
+                    _this._pickWithRayInverseMatrix = BABYLON.Matrix.Identity();
+                }
+                world.invertToRef(_this._pickWithRayInverseMatrix);
+                return BABYLON.Ray.Transform(ray, _this._pickWithRayInverseMatrix);
+            }, predicate);
         };
         Scene.prototype.setPointerOverMesh = function (mesh) {
             if (this._pointerOverMesh === mesh) {
