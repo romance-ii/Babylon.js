@@ -145,6 +145,8 @@ UpgradeLog*.XML
 
 # Do not ignore loaders/obj
 !loaders/*
+
+# Node modules checkouts
 **/node_modules
 node_modules
 
@@ -152,16 +154,4 @@ node_modules
 .idea
 
 # for VSCode
-.vs
-.tempChromeProfileForDebug
-.temp
-*.js.map
-*.js.fx
-*.d.ts
-!dist/**/*.d.ts
-!lib.d.ts
-
-# local dev
-localDev/src/*
-/dist/preview release/babylon.custom.js
-/dist/preview release/babylon.custom.max.js
+.vscode
