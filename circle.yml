@@ -1,7 +1,7 @@
 checkout:
   post:
-    - npm install -g gulp
-    - cd ./Tools/Gulp; npm install
+    - npm install gulp
+    - cd Tools/Gulp; npm install
 test:
   post:
-    - gulp typescript
+    - cd Tools/Gulp; ../../node_modules/gulp/bin/gulp.js typescript
