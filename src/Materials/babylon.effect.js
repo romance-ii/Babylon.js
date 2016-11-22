@@ -125,12 +125,24 @@ var BABYLON;
         Effect.prototype.getCompilationError = function () {
             return this._compilationError;
         };
+        Effect.prototype.getVertexShaderSource = function () {
+            return this._engine.getVertexShaderSource(this._program);
+        };
+        Effect.prototype.getFragmentShaderSource = function () {
+            return this._engine.getFragmentShaderSource(this._program);
+        };
         // Methods
         Effect.prototype._loadVertexShader = function (vertex, callback) {
             // DOM element ?
             if (vertex instanceof HTMLElement) {
                 var vertexCode = BABYLON.Tools.GetDOMTextContent(vertex);
                 callback(vertexCode);
+                return;
+            }
+            // Base64 encoded ?
+            if (vertex.substr(0, 7) === "base64:") {
+                var vertexBinary = window.atob(vertex.substr(7));
+                callback(vertexBinary);
                 return;
             }
             // Is in local store ?
@@ -153,6 +165,12 @@ var BABYLON;
             if (fragment instanceof HTMLElement) {
                 var fragmentCode = BABYLON.Tools.GetDOMTextContent(fragment);
                 callback(fragmentCode);
+                return;
+            }
+            // Base64 encoded ?
+            if (fragment.substr(0, 7) === "base64:") {
+                var fragmentBinary = window.atob(fragment.substr(7));
+                callback(fragmentBinary);
                 return;
             }
             // Is in local store ?
@@ -274,25 +292,25 @@ var BABYLON;
                     }
                 }
                 engine.bindSamplers(this);
+                this._compilationError = "";
                 this._isReady = true;
                 if (this.onCompiled) {
                     this.onCompiled(this);
                 }
             }
             catch (e) {
+                this._compilationError = e.message;
                 // Let's go through fallbacks then
+                BABYLON.Tools.Error("Unable to compile effect: ");
+                BABYLON.Tools.Error("Defines: " + defines);
+                BABYLON.Tools.Error("Error: " + this._compilationError);
+                this._dumpShadersName();
                 if (fallbacks && fallbacks.isMoreFallbacks) {
-                    BABYLON.Tools.Error("Unable to compile effect with current defines. Trying next fallback.");
-                    this._dumpShadersName();
+                    BABYLON.Tools.Error("Trying next fallback.");
                     defines = fallbacks.reduce(defines);
                     this._prepareEffect(vertexSourceCode, fragmentSourceCode, attributesNames, defines, fallbacks);
                 }
                 else {
-                    BABYLON.Tools.Error("Unable to compile effect: ");
-                    this._dumpShadersName();
-                    BABYLON.Tools.Error("Defines: " + defines);
-                    BABYLON.Tools.Error("Error: " + e.message);
-                    this._compilationError = e.message;
                     if (this.onError) {
                         this.onError(this, this._compilationError);
                     }
