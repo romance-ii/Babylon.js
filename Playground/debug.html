@@ -2,43 +2,52 @@
 <html>
 <head>
     <title>Babylon.js Playground</title>
-    <script src="http://www.babylonjs.com/poly2tri.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/poly2tri.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.js"></script>
     <!--x-tag-->
-    <script src="xtag.min.js"></script>
+    <script src="xtag.js"></script>
     <script src="splitbox.js"></script>
     <link href="splitbox.css" rel="stylesheet" />
     <!-- jszip -->
-    <script src="jszip.min.js"></script>
+    <script src="jszip.js"></script>
     <script src="fileSaver.js"></script>
     <!-- Bootstrap -->
-    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="bootstrap/css/bootstrap.css" rel="stylesheet">
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
     <!-- Babylon.js -->
-    <script src="http://www.babylonjs.com/cannon.js"></script>
-    <script src="http://www.babylonjs.com/Oimo.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/cannon.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/Oimo.js"></script>
     <!--<script src="../babylon.js"></script>-->
-    <script src="http://www.babylonjs.com/babylon.max.js"></script>
-    <script src="http://www.babylonjs.com/babylon.canvas2d.max.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/babylon.max.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/babylon.canvas2d.max.js"></script>
     
-    <script src="http://www.babylonjs.com/lib/babylon.fireMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.waterMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.lavaMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.normalMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.skyMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.triPlanarMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.terrainMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.gradientMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.furMaterial.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.gridMaterial.min.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.fireMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.waterMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.lavaMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.normalMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.skyMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.triPlanarMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.terrainMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.gradientMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.furMaterial.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.gridMaterial.js"></script>
 
-    <script src="http://www.babylonjs.com/lib/babylon.brickProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.cloudProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.fireProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.grassProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.marbleProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.roadProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.starfieldProceduralTexture.min.js"></script>
-    <script src="http://www.babylonjs.com/lib/babylon.woodProceduralTexture.min.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.brickProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.cloudProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.fireProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.grassProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.marbleProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.roadProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.starfieldProceduralTexture.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.woodProceduralTexture.js"></script>
+
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.asciiArtPostProcess.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.digitalRainPostProcess.js"></script>    
+
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.glTFFileLoader.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.objFileLoader.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.stlFileLoader.js"></script>
+
     <link href="index.css" rel="stylesheet" />
 </head>
 <body>
@@ -106,15 +115,15 @@
             </ul>
             <ul class="nav pull-right">
                 <li><a href="http://www.html5gamedevs.com/forum/16-babylonjs/">Forum</a></li>
-                <li><a href="http://www.babylonjs.com/sandbox">Sandbox</a></li>
+                <li><a href="https://babylonjs.azurewebsites.net/sandbox">Sandbox</a></li>
                 <li><a href="https://github.com/BabylonJS/Babylon.js/wiki">Wiki</a></li>
-                <li><a href="http://www.sokrate.fr/documentation/babylonjs/index.html">Documentation</a></li>
+                <li><a href="https://doc.babylonjs.com">Documentation</a></li>
             </ul>
         </div>
     </div>
 
-    <script src="http://code.jquery.com/jquery.js"></script>
-    <script src="bootstrap/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery.js"></script>
+    <script src="bootstrap/js/bootstrap.js"></script>
     <script src="index.js"></script>
 </body>
 </html>

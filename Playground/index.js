@@ -16,7 +16,7 @@
             document.getElementById('safemodeToggle').checked = true;
         });
 
-        var snippetUrl = "http://babylonjs-api.azurewebsites.net/api/snippet";
+        var snippetUrl = "https://babylonjs-api.azurewebsites.net/api/snippet";
         var currentSnippetToken;
         var engine;
         var fpsLabel = document.getElementById("fpsLabel");
@@ -160,7 +160,7 @@
                 }
 
                 var canvas = document.getElementById("renderCanvas");
-                engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true});
+                engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, stencil: true});
                 document.getElementById("errorZone").innerHTML = "";
                 document.getElementById("statusBar").innerHTML = "Loading assets...Please wait";
 
@@ -299,7 +299,7 @@
             if (textures[index].isCube) {
                 if (textures[index]._extensions) {
                     for (var i = 0; i < 6; i++) {
-                        textures.push({ name: textures[index].name + textures[index]._extensions });
+                        textures.push({ name: textures[index].name + textures[index]._extensions[i] });
                     }
                 }
                 else {

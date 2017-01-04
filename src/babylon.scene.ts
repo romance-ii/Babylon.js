@@ -143,7 +143,7 @@
 
         // Members
         public autoClear = true;
-        public clearColor: any = new Color3(0.2, 0.2, 0.3);
+        public clearColor: Color4 = new Color4(0.2, 0.2, 0.3, 1.0);
         public ambientColor = new Color3(0, 0, 0);
 
         public forceWireframe = false;
@@ -509,7 +509,10 @@
 
         private _animationRatio: number;
 
-        private _animationStartDate: number;
+        private _animationTimeLast: number;
+        private _animationTime: number = 0;
+        public animationTimeScale: number = 1;
+
         public _cachedMaterial: Material;
 
         private _renderId = 0;
@@ -540,7 +543,11 @@
 
         private _viewMatrix: Matrix;
         private _projectionMatrix: Matrix;
+        
         private _frustumPlanes: Plane[];
+        public get frustumPlanes(): Plane[] {
+            return this._frustumPlanes;
+        }
 
         private _selectionOctree: Octree<AbstractMesh>;
 
@@ -557,7 +564,6 @@
         private _pickedDownSprite: Sprite;
         private _externalData: StringDictionary<Object>;
         private _uid: string;
-
 
         /**
          * @constructor
@@ -883,7 +889,7 @@
 
                 if (!this.pointerDownPredicate) {
                     this.pointerDownPredicate = (mesh: AbstractMesh): boolean => {
-                        return mesh.isPickable && mesh.isVisible && mesh.isReady() && (!mesh.actionManager || mesh.actionManager.hasPointerTriggers);
+                        return mesh.isPickable && mesh.isVisible && mesh.isReady();
                     };
                 }
 
@@ -987,7 +993,7 @@
 
                 if (!this.pointerUpPredicate) {
                     this.pointerUpPredicate = (mesh: AbstractMesh): boolean => {
-                        return mesh.isPickable && mesh.isVisible && mesh.isReady() && (!mesh.actionManager || (mesh.actionManager.hasPickTriggers || mesh.actionManager.hasSpecificTrigger(ActionManager.OnLongPressTrigger)));
+                        return mesh.isPickable && mesh.isVisible && mesh.isReady();
                     };
                 }
 
@@ -1283,19 +1289,19 @@
                 return;
             }
 
-            if (!this._animationStartDate) {
+            // Getting time
+            var now = Tools.Now;
+            if (!this._animationTimeLast) {
                 if (this._pendingData.length > 0) {
                     return;
                 }
-
-                this._animationStartDate = Tools.Now;
+                this._animationTimeLast = now;
             }
-            // Getting time
-            var now = Tools.Now;
-            var delay = now - this._animationStartDate;
-
+            var deltaTime = (now - this._animationTimeLast) * this.animationTimeScale;
+            this._animationTime += deltaTime;
+            this._animationTimeLast = now;
             for (var index = 0; index < this._activeAnimatables.length; index++) {
-                this._activeAnimatables[index]._animate(delay);
+                this._activeAnimatables[index]._animate(this._animationTime);
             }
         }
 
@@ -2046,6 +2052,7 @@
                     if (!particleSystem.emitter.position || (particleSystem.emitter && particleSystem.emitter.isEnabled())) {
                         this._activeParticleSystems.push(particleSystem);
                         particleSystem.animate();
+                        this._renderingManager.dispatchParticles(particleSystem);
                     }
                 }
                 Tools.EndPerformanceCounter("Particles", this.particleSystems.length > 0);
@@ -2463,7 +2470,7 @@
             if (this.activeCameras.length > 0) {
                 for (var cameraIndex = 0; cameraIndex < this.activeCameras.length; cameraIndex++) {
                     if (cameraIndex > 0) {
-                        this._engine.clear(0, false, true, true);
+                        this._engine.clear(null, false, true, true);
                     }
 
                     this._processSubCameras(this.activeCameras[cameraIndex]);
@@ -3112,7 +3119,7 @@
         }
 
         // Misc.
-        public createDefaultCameraOrLight() {
+        public createDefaultCameraOrLight(createArcRotateCamera = false) {
             // Light
             if (this.lights.length === 0) {
                 new HemisphericLight("default light", Vector3.Up(), this);
@@ -3120,14 +3127,23 @@
 
             // Camera
             if (!this.activeCamera) {
-                var camera = new FreeCamera("default camera", Vector3.Zero(), this);
-
                 // Compute position
                 var worldExtends = this.getWorldExtends();
                 var worldCenter = worldExtends.min.add(worldExtends.max.subtract(worldExtends.min).scale(0.5));
 
-                camera.position = new Vector3(worldCenter.x, worldCenter.y, worldExtends.min.z - (worldExtends.max.z - worldExtends.min.z));
-                camera.setTarget(worldCenter);
+                var camera;
+
+                if (createArcRotateCamera) {
+                    camera = new ArcRotateCamera("default camera", 0, 0, 10, Vector3.Zero(), this);
+
+                    camera.setPosition(new Vector3(worldCenter.x, worldCenter.y, worldExtends.min.z - (worldExtends.max.z - worldExtends.min.z)));
+                    camera.setTarget(worldCenter);
+                } else {
+                    camera = new FreeCamera("default camera", Vector3.Zero(), this);
+
+                    camera.position = new Vector3(worldCenter.x, worldCenter.y, worldExtends.min.z - (worldExtends.max.z - worldExtends.min.z));
+                    camera.setTarget(worldCenter);
+                }
 
                 this.activeCamera = camera;
             }
@@ -3196,9 +3212,13 @@
          * 
          * @param renderingGroupId The rendering group id corresponding to its index
          * @param autoClearDepthStencil Automatically clears depth and stencil between groups if true.
+         * @param depth Automatically clears depth between groups if true and autoClear is true.
+         * @param stencil Automatically clears stencil between groups if true and autoClear is true.
          */
-        public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean): void {
-            this._renderingManager.setRenderingAutoClearDepthStencil(renderingGroupId, autoClearDepthStencil);
+        public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean,
+            depth = true,
+            stencil = true): void {
+            this._renderingManager.setRenderingAutoClearDepthStencil(renderingGroupId, autoClearDepthStencil, depth, stencil);
         }
     }
 }

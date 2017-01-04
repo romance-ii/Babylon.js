@@ -4,6 +4,11 @@
         if (serializedGeometries[geometry.id]) {
             return;
         }
+
+        if (geometry.doNotSerialize) {
+            return;
+        }
+
         if (geometry instanceof Geometry.Primitives.Box) {
             serializationGeometries.boxes.push(geometry.serialize());
         }
@@ -67,6 +72,7 @@
         serializationObject.visibility = mesh.visibility;
 
         serializationObject.checkCollisions = mesh.checkCollisions;
+        serializationObject.isBlocker = mesh.isBlocker;
 
         // Parent
         if (mesh.parent) {
@@ -152,6 +158,18 @@
 
         // Layer mask
         serializationObject.layerMask = mesh.layerMask;
+
+        // Alpha
+        serializationObject.alphaIndex = mesh.alphaIndex;
+        serializationObject.hasVertexAlpha = mesh.hasVertexAlpha;
+        
+        // Overlay
+        serializationObject.overlayAlpha = mesh.overlayAlpha;
+        serializationObject.overlayColor = mesh.overlayColor.asArray();
+        serializationObject.renderOverlay = mesh.renderOverlay;
+
+        // Fog
+        serializationObject.applyFog = mesh.applyFog;
 
         // Action Manager
         if (mesh.actionManager) {
@@ -282,7 +300,9 @@
             var material: Material;
             for (index = 0; index < scene.materials.length; index++) {
                 material = scene.materials[index];
-                serializationObject.materials.push(material.serialize());
+                if (!material.doNotSerialize) {
+                    serializationObject.materials.push(material.serialize());
+                }
             }
 
             // MultiMaterials
