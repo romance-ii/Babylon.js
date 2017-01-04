@@ -86,6 +86,16 @@
             return this.delayLoadState === Engine.DELAYLOADSTATE_LOADED || this.delayLoadState === Engine.DELAYLOADSTATE_NONE;
         }
 
+        public get doNotSerialize(): boolean {
+            for (var index = 0; index < this._meshes.length; index++) {
+                if (!this._meshes[index].doNotSerialize) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public setAllVerticesData(vertexData: VertexData, updatable?: boolean): void {
             vertexData.applyToGeometry(this, updatable);
             this.notifyUpdate();
@@ -584,23 +594,23 @@
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV2Kind)) {
-                serializationObject.uvs2 = this.getVerticesData(VertexBuffer.UV2Kind);
+                serializationObject.uv2s = this.getVerticesData(VertexBuffer.UV2Kind);
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV3Kind)) {
-                serializationObject.uvs3 = this.getVerticesData(VertexBuffer.UV3Kind);
+                serializationObject.uv3s = this.getVerticesData(VertexBuffer.UV3Kind);
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV4Kind)) {
-                serializationObject.uvs4 = this.getVerticesData(VertexBuffer.UV4Kind);
+                serializationObject.uv4s = this.getVerticesData(VertexBuffer.UV4Kind);
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV5Kind)) {
-                serializationObject.uvs5 = this.getVerticesData(VertexBuffer.UV5Kind);
+                serializationObject.uv5s = this.getVerticesData(VertexBuffer.UV5Kind);
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.UV6Kind)) {
-                serializationObject.uvs6 = this.getVerticesData(VertexBuffer.UV6Kind);
+                serializationObject.uv6s = this.getVerticesData(VertexBuffer.UV6Kind);
             }
 
             if (this.isVerticesDataPresent(VertexBuffer.ColorKind)) {
@@ -632,13 +642,14 @@
             return geometry.copy(id);
         }
 
-        // from http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#answer-2117523
-        // be aware Math.random() could cause collisions
+        /**
+         * You should now use Tools.RandomId(), this method is still here for legacy reasons.
+         * Implementation from http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#answer-2117523
+         * Be aware Math.random() could cause collisions, but:
+         * "All but 6 of the 128 bits of the ID are randomly generated, which means that for any two ids, there's a 1 in 2^^122 (or 5.3x10^^36) chance they'll collide"
+         */
         public static RandomId(): string {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
+            return Tools.RandomId();
         }
 
         public static ImportGeometry(parsedGeometry: any, mesh: Mesh): void {

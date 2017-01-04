@@ -188,7 +188,7 @@
             };
         }
 
-        public static Vector2ArrayFeeder(array: Array<Vector2> | Float32Array): (i) => Vector2 {
+        public static Vector2ArrayFeeder(array: Array<Vector2> | Float32Array): (i: number) => Vector2 {
             return (index: number) => {
                 let isFloatArray = ((<Float32Array>array).BYTES_PER_ELEMENT !== undefined);
                 let length = isFloatArray ? array.length / 2 : array.length;
@@ -251,26 +251,33 @@
             return eventPrefix;
         }
 
-        public static QueueNewFrame(func): void {
-            if (window.requestAnimationFrame)
-                window.requestAnimationFrame(func);
-            else if (window.msRequestAnimationFrame)
-                window.msRequestAnimationFrame(func);
-            else if (window.webkitRequestAnimationFrame)
-                window.webkitRequestAnimationFrame(func);
-            else if (window.mozRequestAnimationFrame)
-                window.mozRequestAnimationFrame(func);
-            else if (window.oRequestAnimationFrame)
-                window.oRequestAnimationFrame(func);
+        /**
+         * @param func - the function to be called
+         * @param requester - the object that will request the next frame. Falls back to window.
+         */
+        public static QueueNewFrame(func, requester: any = window): void {
+            //if WebVR is enabled AND presenting, requestAnimationFrame is triggered when enabled.
+            /*if(requester.isPresenting) {
+                return;
+            } else*/ if (requester.requestAnimationFrame)
+                requester.requestAnimationFrame(func);
+            else if (requester.msRequestAnimationFrame)
+                requester.msRequestAnimationFrame(func);
+            else if (requester.webkitRequestAnimationFrame)
+                requester.webkitRequestAnimationFrame(func);
+            else if (requester.mozRequestAnimationFrame)
+                requester.mozRequestAnimationFrame(func);
+            else if (requester.oRequestAnimationFrame)
+                requester.oRequestAnimationFrame(func);
             else {
                 window.setTimeout(func, 16);
             }
         }
 
-        public static RequestFullscreen(element, options?: any): void {
+        public static RequestFullscreen(element): void {
             var requestFunction = element.requestFullscreen || element.msRequestFullscreen || element.webkitRequestFullscreen || element.mozRequestFullScreen;
             if (!requestFunction) return;
-            requestFunction.call(element, options);
+            requestFunction.call(element);
         }
 
         public static ExitFullscreen(): void {
@@ -430,6 +437,32 @@
                     noIndexedDB();
                 }
             }
+        }
+
+        /** 
+         * Load a script (identified by an url). When the url returns, the 
+         * content of this file is added into a new script element, attached to the DOM (body element)
+         */
+        public static LoadScript(scriptUrl:string, onSuccess: () => void, onError?: () => void) {
+            var head = document.getElementsByTagName('head')[0];
+            var script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = scriptUrl;
+
+            var self = this;
+            script.onload = () => {
+                if (onSuccess) {
+                    onSuccess();
+                }
+            };
+
+            script.onerror = () => {
+                if (onError) {
+                    onError();
+                }
+            };
+
+            head.appendChild(script);
         }
 
         public static ReadFileAsDataURL(fileToLoad, callback, progressCallback): void {
@@ -602,11 +635,14 @@
 
             // Copy the pixels to a 2D canvas
             var imageData = context.createImageData(width, height);
-            //cast is due to ts error in lib.d.ts, see here - https://github.com/Microsoft/TypeScript/issues/949
-            var castData = <Uint8Array>(<any>imageData.data);
+            var castData = <any>(imageData.data);
             castData.set(data);
             context.putImageData(imageData, 0, 0);
 
+            Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
+        }
+
+        static EncodeScreenshotCanvasData(successCallback?: (data: string) => void, mimeType: string = "image/png") {
             var base64Image = screenshotCanvas.toDataURL(mimeType);
 
             if (successCallback) {
@@ -638,6 +674,66 @@
         }
 
         public static CreateScreenshot(engine: Engine, camera: Camera, size: any, successCallback?: (data: string) => void, mimeType: string = "image/png"): void {
+            var width: number;
+            var height: number;
+
+            // If a precision value is specified
+            if (size.precision) {
+                width = Math.round(engine.getRenderWidth() * size.precision);
+                height = Math.round(width / engine.getAspectRatio(camera));
+            }
+            else if (size.width && size.height) {
+                width = size.width;
+                height = size.height;
+            }
+            //If passing only width, computing height to keep display canvas ratio.
+            else if (size.width && !size.height) {
+                width = size.width;
+                height = Math.round(width / engine.getAspectRatio(camera));
+            }
+            //If passing only height, computing width to keep display canvas ratio.
+            else if (size.height && !size.width) {
+                height = size.height;
+                width = Math.round(height * engine.getAspectRatio(camera));
+            }
+            //Assuming here that "size" parameter is a number
+            else if (!isNaN(size)) {
+                height = size;
+                width = size;
+            }
+            else {
+                Tools.Error("Invalid 'size' parameter !");
+                return;
+            }
+
+            if (!screenshotCanvas) {
+                screenshotCanvas = document.createElement('canvas');
+            }
+            
+            screenshotCanvas.width = width;
+            screenshotCanvas.height = height;
+
+            var renderContext = screenshotCanvas.getContext("2d");
+
+            var ratio = engine.getRenderWidth() / engine.getRenderHeight();
+            var newWidth = width;
+            var newHeight = newWidth / ratio;
+            if (newHeight > height) {
+                newHeight = height;
+                newWidth = newHeight * ratio;
+            }
+
+            var offsetX = Math.max(0, width - newWidth) / 2;
+            var offsetY = Math.max(0, height - newHeight) / 2;
+
+            renderContext.fillStyle = camera.getScene().clearColor.toHexString();
+            renderContext.fillRect(0, 0, width, height);
+            renderContext.drawImage(engine.getRenderingCanvas(), offsetX, offsetY, newWidth, newHeight);
+
+            Tools.EncodeScreenshotCanvasData(successCallback, mimeType);
+        }
+
+        public static CreateScreenshotUsingRenderTarget(engine: Engine, camera: Camera, size: any, successCallback?: (data: string) => void, mimeType: string = "image/png"): void {
             var width: number;
             var height: number;
 
@@ -682,7 +778,7 @@
             }
 
             //At this point size can be a number, or an object (according to engine.prototype.createRenderTargetTexture method)
-            var texture = new RenderTargetTexture("screenShot", size, scene, false, false);
+            var texture = new RenderTargetTexture("screenShot", size, scene, false, false, Engine.TEXTURETYPE_UNSIGNED_INT, false, Texture.NEAREST_SAMPLINGMODE);
             texture.renderList = scene.meshes;
 
             texture.onAfterRenderObservable.add(() => {
@@ -741,6 +837,18 @@
             }
 
             return false;
+        }
+
+        /**
+         * Implementation from http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#answer-2117523
+         * Be aware Math.random() could cause collisions, but:
+         * "All but 6 of the 128 bits of the ID are randomly generated, which means that for any two ids, there's a 1 in 2^^122 (or 5.3x10^^36) chance they'll collide"
+         */
+        public static RandomId(): string {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
         }
 
         // Logs
@@ -975,7 +1083,7 @@
             return name;
         }
 
-        public static first<T>(array: Array<T>, predicate: (item) => boolean) {
+        public static first<T>(array: Array<T>, predicate: (item: T) => boolean) {
             for (let el of array) {
                 if (predicate(el)) {
                     return el;
@@ -984,10 +1092,40 @@
         }
 
         /**
+         * This method will return the name of the full name of the class, including its owning module (if any).
+         * It will works only on Javascript basic data types (number, string, ...) and instance of class declared with the @className decorator or implementing a method getClassName():string (in which case the module won't be specified).
+         * @param object the object to get the class name from
+         * @return a string that can have two forms: "moduleName.className" if module was specified when the class' Name was registered or "className" if there was not module specified.
+         */
+        public static getFullClassName(object, isType: boolean = false): string {
+            let className = null;
+            let moduleName = null;
+
+            if (!isType && object.getClassName) {
+                className = object.getClassName();
+            } else {
+                if (object instanceof Object) {
+                    let classObj = isType ? object : Object.getPrototypeOf(object);
+                    className = classObj.constructor["__bjsclassName__"];
+                    moduleName = classObj.constructor["__bjsmoduleName__"];
+                }
+                if (!className) {
+                    className = typeof object;
+                }
+            }
+
+            if (!className) {
+                return null;
+            }
+
+            return ((moduleName != null) ? (moduleName + ".") : "") + className;
+        }
+
+        /**
          * This method can be used with hashCodeFromStream when your input is an array of values that are either: number, string, boolean or custom type implementing the getHashCode():number method.
          * @param array
          */
-        public static arrayOrStringFeeder(array: any): (i) => number {
+        public static arrayOrStringFeeder(array: any): (i: number) => number {
             return (index: number) => {
                 if (index >= array.length) {
                     return null;
@@ -1165,14 +1303,16 @@
     }
 
     /**
-     * Use this className as a decorator on a given class definition to add it a name.
+     * Use this className as a decorator on a given class definition to add it a name and optionally its module.
      * You can then use the Tools.getClassName(obj) on an instance to retrieve its class name.
      * This method is the only way to get it done in all cases, even if the .js file declaring the class is minified
-     * @param name
+     * @param name The name of the class, case should be preserved
+     * @param module The name of the Module hosting the class, optional, but strongly recommended to specify if possible. Case should be preserved.
      */
-    export function className(name: string): (target: Object) => void {
+    export function className(name: string, module?: string): (target: Object) => void {
         return (target: Object) => {
             target["__bjsclassName__"] = name;
+            target["__bjsmoduleName__"] = (module != null) ? module : null;
         }
     }
 

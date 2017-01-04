@@ -143,8 +143,12 @@ module BABYLON {
             return this._parent ? this._parent.physicsBody : this._physicsBody;
         }
 
-        public get parent() {
+        public get parent(): PhysicsImpostor {
             return this._parent;
+        }
+
+        public set parent(value: PhysicsImpostor) {
+            this._parent = value;
         }
 
         /**
@@ -332,7 +336,7 @@ module BABYLON {
             var otherImpostor = this._physicsEngine.getImpostorWithPhysicsBody(e.body);
             if (otherImpostor) {
                 this._onPhysicsCollideCallbacks.filter((obj) => {
-                    return obj.otherImpostors.indexOf(otherImpostor) !== -1
+                    return (obj.otherImpostors.length === 0 || obj.otherImpostors.indexOf(otherImpostor) !== -1)
                 }).forEach((obj) => {
                     obj.callback(this, otherImpostor);
                 })

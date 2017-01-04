@@ -800,7 +800,7 @@
         public static CreateCylinder(options: { height?: number, diameterTop?: number, diameterBottom?: number, diameter?: number, tessellation?: number, subdivisions?: number, arc?: number, faceColors?: Color4[], faceUV?: Vector4[], hasRings?: boolean, enclose?: boolean, sideOrientation?: number }): VertexData {
             var height: number = options.height || 2;
             var diameterTop: number = (options.diameterTop === 0) ? 0 : options.diameterTop || options.diameter || 1;
-            var diameterBottom: number = options.diameterBottom || options.diameter || 1;
+            var diameterBottom: number = (options.diameterBottom === 0) ? 0 : options.diameterBottom || options.diameter || 1;
             var tessellation: number = options.tessellation || 24;
             var subdivisions: number = options.subdivisions || 1;
             var hasRings: boolean = options.hasRings;
@@ -809,12 +809,12 @@
             var sideOrientation: number = (options.sideOrientation === 0) ? 0 : options.sideOrientation || Mesh.DEFAULTSIDE;
             var faceUV: Vector4[] = options.faceUV || new Array<Vector4>(3);
             var faceColors: Color4[] = options.faceColors;
-
             // default face colors and UV if undefined
             var quadNb: number = (arc !== 1 && enclose) ? 2 : 0;
             var ringNb: number = (hasRings) ? subdivisions : 1;
             var surfaceNb: number = 2 + (1 + quadNb) * ringNb;
             var f: number;
+
             for (f = 0; f < surfaceNb; f++) {
                 if (faceColors && faceColors[f] === undefined) {
                     faceColors[f] = new Color4(1, 1, 1, 1);
@@ -1180,7 +1180,7 @@
             return vertexData;
         }
 
-        public static CreateGround(options: { width?: number, height?: number, subdivisions?: number }): VertexData {
+        public static CreateGround(options: { width?: number, height?: number, subdivisions?: number, subdivisionsX?: number, subdivisionsY?: number }): VertexData {
             var indices = [];
             var positions = [];
             var normals = [];
@@ -1189,28 +1189,29 @@
 
             var width: number = options.width || 1;
             var height: number = options.height || 1;
-            var subdivisions: number = options.subdivisions || 1;
+            var subdivisionsX: number = options.subdivisionsX || options.subdivisions || 1;
+            var subdivisionsY: number = options.subdivisionsY || options.subdivisions || 1;
 
-            for (row = 0; row <= subdivisions; row++) {
-                for (col = 0; col <= subdivisions; col++) {
-                    var position = new Vector3((col * width) / subdivisions - (width / 2.0), 0, ((subdivisions - row) * height) / subdivisions - (height / 2.0));
+            for (row = 0; row <= subdivisionsY; row++) {
+                for (col = 0; col <= subdivisionsX; col++) {
+                    var position = new Vector3((col * width) / subdivisionsX - (width / 2.0), 0, ((subdivisionsY - row) * height) / subdivisionsY - (height / 2.0));
                     var normal = new Vector3(0, 1.0, 0);
 
                     positions.push(position.x, position.y, position.z);
                     normals.push(normal.x, normal.y, normal.z);
-                    uvs.push(col / subdivisions, 1.0 - row / subdivisions);
+                    uvs.push(col / subdivisionsX, 1.0 - row / subdivisionsX);
                 }
             }
 
-            for (row = 0; row < subdivisions; row++) {
-                for (col = 0; col < subdivisions; col++) {
-                    indices.push(col + 1 + (row + 1) * (subdivisions + 1));
-                    indices.push(col + 1 + row * (subdivisions + 1));
-                    indices.push(col + row * (subdivisions + 1));
+            for (row = 0; row < subdivisionsY; row++) {
+                for (col = 0; col < subdivisionsX; col++) {
+                    indices.push(col + 1 + (row + 1) * (subdivisionsX + 1));
+                    indices.push(col + 1 + row * (subdivisionsX + 1));
+                    indices.push(col + row * (subdivisionsX + 1));
 
-                    indices.push(col + (row + 1) * (subdivisions + 1));
-                    indices.push(col + 1 + (row + 1) * (subdivisions + 1));
-                    indices.push(col + row * (subdivisions + 1));
+                    indices.push(col + (row + 1) * (subdivisionsX + 1));
+                    indices.push(col + 1 + (row + 1) * (subdivisionsX + 1));
+                    indices.push(col + row * (subdivisionsX + 1));
                 }
             }
 
