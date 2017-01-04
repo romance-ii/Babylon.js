@@ -158,6 +158,7 @@ node_modules
 
 # Temp and garbage files
 *~
+*#
 .#*
 *.orig
 *.swp
