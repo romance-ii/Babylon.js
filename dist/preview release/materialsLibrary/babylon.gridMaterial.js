@@ -1,9 +1,14 @@
 /// <reference path="../../../dist/preview release/babylon.d.ts"/>
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-};
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -18,7 +23,7 @@ var BABYLON;
             var _this = _super.call(this) || this;
             _this.TRANSPARENT = false;
             _this.FOG = false;
-            _this._keys = Object.keys(_this);
+            _this.rebuild();
             return _this;
         }
         return GRIDMaterialDefines;
@@ -73,9 +78,6 @@ var BABYLON;
         };
         GridMaterial.prototype._checkCache = function (scene, mesh, useInstances) {
             if (!mesh) {
-                return true;
-            }
-            if (mesh._materialDefines && mesh._materialDefines.isEqual(this._defines)) {
                 return true;
             }
             return false;
@@ -149,7 +151,7 @@ var BABYLON;
             }
             // Fog
             BABYLON.MaterialHelper.BindFogParameters(scene, mesh, this._effect);
-            _super.prototype.bind.call(this, world, mesh);
+            this._afterBind(mesh);
         };
         GridMaterial.prototype.dispose = function (forceDisposeEffect) {
             _super.prototype.dispose.call(this, forceDisposeEffect);

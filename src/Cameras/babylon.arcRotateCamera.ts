@@ -1,4 +1,7 @@
-﻿module BABYLON {
+﻿/// <reference path="babylon.targetCamera.ts" />
+/// <reference path="..\Tools\babylon.tools.ts" />
+
+module BABYLON {
     export class ArcRotateCamera extends TargetCamera {
         @serialize()
         public alpha: number;
@@ -406,13 +409,13 @@
             this.rebuildAnglesAndRadius();
         }
 
-        public setTarget(target: Vector3, toBoundingCenter = false): void {            
-            if (this._getTargetPosition().equals(target)) {
+        public setTarget(target: Vector3, toBoundingCenter = false, allowSamePosition = false): void {            
+            if (!allowSamePosition && this._getTargetPosition().equals(target)) {
                 return;
             }
             
             if (toBoundingCenter && (<any>target).getBoundingInfo){
-                this._targetBoundingCenter = (<any>target).getBoundingInfo().boundingBox.center.clone();
+                this._targetBoundingCenter = (<any>target).getBoundingInfo().boundingBox.centerWorld.clone();
             }else{
                 this._targetBoundingCenter = null;
             }
@@ -442,7 +445,7 @@
                 this.position.copyFrom(this._newPosition);
 
                 var up = this.upVector;
-                if (this.allowUpsideDown && this.beta < 0) {
+                if (this.allowUpsideDown && sinb < 0) {
                     up = up.clone();
                     up = up.negate();
                 }

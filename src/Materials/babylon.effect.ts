@@ -28,6 +28,9 @@
             this._meshRank = rank;
             this._mesh = mesh;
 
+            if (rank < this._currentRank) {
+                this._currentRank = rank;
+            }
             if (rank > this._maxRank) {
                 this._maxRank = rank;
             }
@@ -38,20 +41,31 @@
         }
 
         public reduce(currentDefines: string): string {
-
-            var currentFallbacks = this._defines[this._currentRank];
-
-            for (var index = 0; index < currentFallbacks.length; index++) {
-                currentDefines = currentDefines.replace("#define " + currentFallbacks[index], "");
-            }
-
-            if (this._mesh && this._currentRank === this._meshRank) {
+            // First we try to switch to CPU skinning
+            if (this._mesh && this._mesh.computeBonesUsingShaders && this._mesh.numBoneInfluencers > 0) {
                 this._mesh.computeBonesUsingShaders = false;
                 currentDefines = currentDefines.replace("#define NUM_BONE_INFLUENCERS " + this._mesh.numBoneInfluencers, "#define NUM_BONE_INFLUENCERS 0");
                 Tools.Log("Falling back to CPU skinning for " + this._mesh.name);
-            }
 
-            this._currentRank++;
+                var scene = this._mesh.getScene();
+                for (var index = 0; index < scene.meshes.length; index++) {
+                    var otherMesh = scene.meshes[index];
+
+                    if (otherMesh.material === this._mesh.material && otherMesh.computeBonesUsingShaders && otherMesh.numBoneInfluencers > 0) {
+                        otherMesh.computeBonesUsingShaders = false;
+                    }
+                }
+            }
+            else {
+                var currentFallbacks = this._defines[this._currentRank];
+                if (currentFallbacks) {
+                    for (var index = 0; index < currentFallbacks.length; index++) {
+                        currentDefines = currentDefines.replace("#define " + currentFallbacks[index], "");
+                    }
+                }
+
+                this._currentRank++;
+            }
 
             return currentDefines;
         }
@@ -63,7 +77,9 @@
         public onCompiled: (effect: Effect) => void;
         public onError: (effect: Effect, errors: string) => void;
         public onBind: (effect: Effect) => void;
+        public uniqueId = 0;
 
+        private static _uniqueIdSeed = 0;
         private _engine: Engine;
         private _uniformsNames: string[];
         private _samplers: string[];
@@ -91,6 +107,8 @@
 
             this._indexParameters = indexParameters;
 
+            this.uniqueId = Effect._uniqueIdSeed++;
+
             var vertexSource;
             var fragmentSource;
 
@@ -116,13 +134,21 @@
 
             this._loadVertexShader(vertexSource, vertexCode => {
                 this._processIncludes(vertexCode, vertexCodeWithIncludes => {
-                    this._loadFragmentShader(fragmentSource, (fragmentCode) => {
-                        this._processIncludes(fragmentCode, fragmentCodeWithIncludes => {
-                            this._prepareEffect(vertexCodeWithIncludes, fragmentCodeWithIncludes, attributesNames, defines, fallbacks);
+                    this._processShaderConversion(vertexCodeWithIncludes, false, migratedVertexCode => {
+                        this._loadFragmentShader(fragmentSource, (fragmentCode) => {
+                            this._processIncludes(fragmentCode, fragmentCodeWithIncludes => {
+                                this._processShaderConversion(fragmentCodeWithIncludes, true, migratedFragmentCode => {
+                                    this._prepareEffect(migratedVertexCode, migratedFragmentCode, attributesNames, defines, fallbacks);
+                                });
+                            });
                         });
                     });
                 });
             });
+        }
+
+        public get key(): string {
+            return this._key;
         }
 
         // Properties
@@ -260,6 +286,45 @@
                 Tools.Error("Fragment shader:" + this.name);
             }
         }
+        private _processShaderConversion(sourceCode: string, isFragment: boolean, callback: (data: any) => void): void {
+
+            var preparedSourceCode = this._processPrecision(sourceCode);
+
+            if (this._engine.webGLVersion == 1) {
+                callback(preparedSourceCode);
+                return;
+            }
+
+            // Already converted
+            if (preparedSourceCode.indexOf("#version 3") !== -1) {
+                callback(preparedSourceCode);
+                return;
+            }
+            
+            // Remove extensions 
+            // #extension GL_OES_standard_derivatives : enable
+            // #extension GL_EXT_shader_texture_lod : enable
+            // #extension GL_EXT_frag_depth : enable
+            var regex = /#extension.+(GL_OES_standard_derivatives|GL_EXT_shader_texture_lod|GL_EXT_frag_depth).+enable/g;
+            var result = preparedSourceCode.replace(regex, "");
+
+            // Migrate to GLSL v300
+            result = result.replace(/varying\s/g, isFragment ? "in " : "out ");
+            result = result.replace(/attribute[ \t]/g, "in ");
+            result = result.replace(/[ \t]attribute/g, " in");
+            
+            if (isFragment) {
+                result = result.replace(/texture2DLodEXT\(/g, "textureLod(");
+                result = result.replace(/textureCubeLodEXT\(/g, "textureLod(");
+                result = result.replace(/texture2D\(/g, "texture(");
+                result = result.replace(/textureCube\(/g, "texture(");
+                result = result.replace(/gl_FragDepthEXT/g, "gl_FragDepth");
+                result = result.replace(/gl_FragColor/g, "glFragColor");
+                result = result.replace(/void\s+?main\(/g, "out vec4 glFragColor;\nvoid main(");
+            }
+            
+            callback(result);
+        }
 
         private _processIncludes(sourceCode: string, callback: (data: any) => void): void {
             var regex = /#include<(.+)>(\((.*)\))*(\[(.*)\])*/g;
@@ -343,10 +408,6 @@
         private _prepareEffect(vertexSourceCode: string, fragmentSourceCode: string, attributesNames: string[], defines: string, fallbacks?: EffectFallbacks): void {
             try {
                 var engine = this._engine;
-
-                // Precision
-                vertexSourceCode = this._processPrecision(vertexSourceCode);
-                fragmentSourceCode = this._processPrecision(fragmentSourceCode);
 
                 this._program = engine.createShaderProgram(vertexSourceCode, fragmentSourceCode, defines);
 

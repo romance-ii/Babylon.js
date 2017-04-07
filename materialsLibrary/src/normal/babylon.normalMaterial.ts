@@ -32,10 +32,10 @@ module BABYLON {
         public SHADOW2 = false;
         public SHADOW3 = false;
         public SHADOWS = false;
-        public SHADOWVSM0 = false;
-        public SHADOWVSM1 = false;
-        public SHADOWVSM2 = false;
-        public SHADOWVSM3 = false;
+        public SHADOWESM0 = false;
+        public SHADOWESM1 = false;
+        public SHADOWESM2 = false;
+        public SHADOWESM3 = false;
         public SHADOWPCF0 = false;
         public SHADOWPCF1 = false;
         public SHADOWPCF2 = false;
@@ -51,7 +51,7 @@ module BABYLON {
 
         constructor() {
             super();
-            this._keys = Object.keys(this);
+            this.rebuild();
         }
     }
 
@@ -98,10 +98,6 @@ module BABYLON {
 
             if (this._defines.INSTANCES !== useInstances) {
                 return false;
-            }
-
-            if (mesh._materialDefines && mesh._materialDefines.isEqual(this._defines)) {
-                return true;
             }
 
             return false;
@@ -163,7 +159,7 @@ module BABYLON {
 
             var lightIndex = 0;
             if (scene.lightsEnabled && !this.disableLighting) {
-                needNormals = MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines);
+                needNormals = MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines, false);
             }
 
             // Attribs
@@ -242,10 +238,10 @@ module BABYLON {
                 this._effect = scene.getEngine().createEffect(shaderName,
                     attribs,
                     ["world", "view", "viewProjection", "vEyePosition", "vLightsType", "vDiffuseColor",
-                        "vLightData0", "vLightDiffuse0", "vLightSpecular0", "vLightDirection0", "vLightGround0", "lightMatrix0",
-                        "vLightData1", "vLightDiffuse1", "vLightSpecular1", "vLightDirection1", "vLightGround1", "lightMatrix1",
-                        "vLightData2", "vLightDiffuse2", "vLightSpecular2", "vLightDirection2", "vLightGround2", "lightMatrix2",
-                        "vLightData3", "vLightDiffuse3", "vLightSpecular3", "vLightDirection3", "vLightGround3", "lightMatrix3",
+                        "vLightData0", "vLightDiffuse0", "vLightDirection0", "vLightGround0", "lightMatrix0",
+                        "vLightData1", "vLightDiffuse1", "vLightDirection1", "vLightGround1", "lightMatrix1",
+                        "vLightData2", "vLightDiffuse2", "vLightDirection2", "vLightGround2", "lightMatrix2",
+                        "vLightData3", "vLightDiffuse3", "vLightDirection3", "vLightGround3", "lightMatrix3",
                         "vFogInfos", "vFogColor", "pointSize",
                         "vDiffuseInfos", 
                         "mBones",
@@ -263,14 +259,6 @@ module BABYLON {
 
             this._renderId = scene.getRenderId();
             this._wasPreviouslyReady = true;
-
-            if (mesh) {
-                if (!mesh._materialDefines) {
-                    mesh._materialDefines = new NormalMaterialDefines();
-                }
-
-                this._defines.cloneTo(mesh._materialDefines);
-            }
 
             return true;
         }
@@ -323,7 +311,7 @@ module BABYLON {
             // Fog
             MaterialHelper.BindFogParameters(scene, mesh, this._effect);
 
-            super.bind(world, mesh);
+            this._afterBind(mesh);
         }
 
         public getAnimatables(): IAnimatable[] {

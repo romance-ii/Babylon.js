@@ -17,7 +17,7 @@ module BABYLON {
         computeWorldMatrix?(force: boolean): void;
         getChildMeshes?(): Array<AbstractMesh>;
         getVerticesData?(kind: string): Array<number> | Float32Array;
-        getIndices?(): Array<number> | Int32Array;
+        getIndices?(): IndicesArray;
         getScene?(): Scene;
     }
 
@@ -169,7 +169,7 @@ module BABYLON {
         public getObjectExtendSize(): Vector3 {
             if (this.object.getBoundingInfo) {
                 this.object.computeWorldMatrix && this.object.computeWorldMatrix(true);
-                return this.object.getBoundingInfo().boundingBox.extendSize.scale(2).multiply(this.object.scaling)
+                return this.object.getBoundingInfo().boundingBox.extendSizeWorld.scale(2).multiply(this.object.scaling)
             } else {
                 return PhysicsImpostor.DEFAULT_OBJECT_SIZE;
             }
@@ -177,7 +177,7 @@ module BABYLON {
 
         public getObjectCenter(): Vector3 {
             if (this.object.getBoundingInfo) {
-                return this.object.getBoundingInfo().boundingBox.center;
+                return this.object.getBoundingInfo().boundingBox.centerWorld;
             } else {
                 return this.object.position;
             }
@@ -212,9 +212,6 @@ module BABYLON {
             return this._physicsEngine.getPhysicsPlugin().getLinearVelocity(this);
         }
 
-        /**
-         * Set the body's linear velocity.
-         */
         public setLinearVelocity(velocity: Vector3) {
             this._physicsEngine.getPhysicsPlugin().setLinearVelocity(this, velocity);
         }
@@ -223,9 +220,6 @@ module BABYLON {
             return this._physicsEngine.getPhysicsPlugin().getAngularVelocity(this);
         }
 
-        /**
-         * Set the body's linear velocity.
-         */
         public setAngularVelocity(velocity: Vector3) {
             this._physicsEngine.getPhysicsPlugin().setAngularVelocity(this, velocity);
         }
@@ -330,13 +324,22 @@ module BABYLON {
             }
         }
 
+        /**
+         * Legacy collision detection event support
+         */
+        public onCollideEvent: (collider: BABYLON.PhysicsImpostor, collidedWith: BABYLON.PhysicsImpostor) => void = null;
+
         //event and body object due to cannon's event-based architecture.
         public onCollide = (e: { body: any }) => {
-            if (!this._onPhysicsCollideCallbacks.length) return;
+            if (!this._onPhysicsCollideCallbacks.length && !this.onCollideEvent) return;
             var otherImpostor = this._physicsEngine.getImpostorWithPhysicsBody(e.body);
             if (otherImpostor) {
+                // Legacy collision detection event support
+                if (this.onCollideEvent) {
+                    this.onCollideEvent(this, otherImpostor);
+                }
                 this._onPhysicsCollideCallbacks.filter((obj) => {
-                    return (obj.otherImpostors.length === 0 || obj.otherImpostors.indexOf(otherImpostor) !== -1)
+                    return obj.otherImpostors.indexOf(otherImpostor) !== -1
                 }).forEach((obj) => {
                     obj.callback(this, otherImpostor);
                 })

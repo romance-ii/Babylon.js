@@ -3,6 +3,7 @@
 <head>
     <title>Babylon.js Playground</title>
     <script src="hand.minified-1.2.js"></script>
+    <script src="https://code.jquery.com/pep/0.4.2/pep.min.js"></script>
     <script src="https://babylonjs.azurewebsites.net/poly2tri.js"></script>    
     <!-- Babylon.js -->    
     <script src="https://babylonjs.azurewebsites.net/cannon.js"></script>
@@ -20,6 +21,7 @@
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.gradientMaterial.min.js"></script>
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.furMaterial.min.js"></script>
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.gridMaterial.min.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/lib/babylon.shadowOnlyMaterial.min.js"></script>
 
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.brickProceduralTexture.min.js"></script>
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.cloudProceduralTexture.min.js"></script>
@@ -37,10 +39,11 @@
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.objFileLoader.js"></script>
     <script src="https://babylonjs.azurewebsites.net/lib/babylon.stlFileLoader.js"></script>
     
+    <script src="https://rawgit.com/BabylonJS/Extensions/master/ClonerSystem/src/babylonx.cloner.js"></script>
     <link href="frame.css" rel="stylesheet" />
 </head>
 <body>
-    <canvas id="renderCanvas"></canvas>
+    <canvas touch-action="none" id="renderCanvas"></canvas>
 
     <span class="label" id="fpsLabel">FPS</span>
 

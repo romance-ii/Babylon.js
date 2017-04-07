@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Babylon.js Playground</title>
+    <script src="https://code.jquery.com/pep/0.4.2/pep.min.js"></script>
     <script src="http://www.babylonjs.com/poly2tri.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
     <!--x-tag-->
@@ -15,6 +16,9 @@
     <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
     <!-- Babylon.js -->    
+    
+    <script src="https://babylonjs.azurewebsites.net/cannon.js"></script>
+    <script src="https://babylonjs.azurewebsites.net/Oimo.js"></script>
 	<script src="../tools/DevLoader/BabylonLoader.js"></script>
     <link href="index.css" rel="stylesheet" />
 </head>
@@ -61,13 +65,16 @@
                 <ul class="dropdown-menu" id="scriptsList"></ul>
             </div>
         </div>
+        <div class="save-message" id="saveMessage">
+            This PG has no metadata. Click save to add them.
+        </div>
     </div>
 
     <x-splitbox>
         <div id="jsEditor"></div>
         <div splitter></div>
         <div id="canvasZone">
-            <canvas id="renderCanvas"></canvas>
+            <canvas touch-action="none" id="renderCanvas"></canvas>
         </div>
     </x-splitbox>
 
@@ -87,6 +94,24 @@
                 <li><a href="https://github.com/BabylonJS/Babylon.js/wiki">Wiki</a></li>
                 <li><a href="https://doc.babylonjs.com">Documentation</a></li>
             </ul>
+        </div>
+    </div>
+
+    <div id="saveLayer" class="save-layer">
+        <div class="save-form">
+            <label for="saveFormTitle">TITLE</label>
+            <div class="separator"></div>
+            <input type="text" maxlength="120" id="saveFormTitle" class="save-form-title">
+            <label for="saveFormDescription">DESCRIPTION</label>
+            <div class="separator"></div>
+            <textarea id="saveFormDescription" rows="4" cols="10"></textarea>
+            <label for="saveFormTags">TAGS (separated by comma)</label>
+            <div class="separator"></div>
+            <textarea id="saveFormTags" rows="4" cols="10"></textarea>
+            <div class="save-form-buttons">
+                <button class="btn save-form-button" id="saveFormButtonOk">OK</button>
+                <button class="btn save-form-button" id="saveFormButtonCancel">Cancel</button>
+            </div>
         </div>
     </div>
 

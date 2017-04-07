@@ -21,6 +21,8 @@ var path = require('path');
 var sass = require('gulp-sass');
 var webpack = require('webpack-stream');
 
+var zip = require('gulp-zip');
+
 var config = require("./config.json");
 var customConfig = require("./custom.config.json");
 
@@ -29,7 +31,7 @@ var includeShadersStream;
 var shadersStream;
 var workersStream;
 
-var extendsSearchRegex = /var\s__extends[\s\S]+?\};/g;
+var extendsSearchRegex = /var\s__extends[\s\S]+?\}\)\(\);/g;
 var decorateSearchRegex = /var\s__decorate[\s\S]+?\};/g;
 
 /**
@@ -212,7 +214,10 @@ gulp.task('typescript-compile', function () {
     return merge2([
         tsResult.dts
             .pipe(concat(config.build.declarationFilename))
-            //.pipe(addDtsExport("BABYLON"))
+            .pipe(gulp.dest(config.build.outputDirectory)),
+        tsResult.dts
+            .pipe(concat(config.build.declarationModuleFilename))
+            .pipe(addDtsExport("BABYLON"))
             .pipe(gulp.dest(config.build.outputDirectory)),
         tsResult.js
             .pipe(sourcemaps.write("./", 
@@ -380,4 +385,11 @@ gulp.task('webserver', function () {
  * Combine Webserver and Watch as long as vscode does not handle multi tasks.
  */
 gulp.task('run', ['watch', 'webserver'], function () {
+});
+
+
+gulp.task("zip-blender" , function() {
+    return gulp.src('../../Exporters/Blender/src/**')
+    .pipe(zip('Blender2Babylon-5.2.zip'))
+    .pipe(gulp.dest('../../Exporters/Blender'));
 });

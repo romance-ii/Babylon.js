@@ -137,10 +137,6 @@ module BABYLON {
                 return false;
             }
 
-            if (mesh._materialDefines && mesh._materialDefines.isEqual(this._defines)) {
-                return true;
-            }
-
             return false;
         }
 
@@ -177,7 +173,7 @@ module BABYLON {
                         this._defines.DIFFUSE = true;
                     }
                 } 
-                if (this.heightTexture) {
+                if (this.heightTexture && engine.getCaps().maxVertexTextureImageUnits) {
                     if (!this.heightTexture.isReady()) {
                         return false;
                     } else {
@@ -213,7 +209,7 @@ module BABYLON {
 
             // Lights
             if (scene.lightsEnabled && !this.disableLighting) {
-                needNormals = MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines, this.maxSimultaneousLights);
+                needNormals = MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines, false, this.maxSimultaneousLights);
             }
 
             // Attribs
@@ -315,14 +311,6 @@ module BABYLON {
             this._renderId = scene.getRenderId();
             this._wasPreviouslyReady = true;
 
-            if (mesh) {
-                if (!mesh._materialDefines) {
-                    mesh._materialDefines = new FurMaterialDefines();
-                }
-
-                this._defines.cloneTo(mesh._materialDefines);
-            }
-
             return true;
         }
 
@@ -394,7 +382,7 @@ module BABYLON {
                 this._effect.setTexture("furTexture", this.furTexture);
             }
  
-            super.bind(world, mesh);
+            this._afterBind(mesh);
         }
 
         public getAnimatables(): IAnimatable[] {

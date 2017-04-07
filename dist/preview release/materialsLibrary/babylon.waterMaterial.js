@@ -1,10 +1,14 @@
 /// <reference path="../../../dist/preview release/babylon.d.ts"/>
-/// <reference path="../simple/babylon.simpleMaterial.ts"/>
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-};
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -180,9 +184,6 @@ var BABYLON;
             if (this._defines.INSTANCES !== useInstances) {
                 return false;
             }
-            if (mesh._materialDefines && mesh._materialDefines.isEqual(this._defines)) {
-                return true;
-            }
             return false;
         };
         WaterMaterial.prototype.isReady = function (mesh, useInstances) {
@@ -247,7 +248,7 @@ var BABYLON;
             }
             // Lights
             if (scene.lightsEnabled && !this.disableLighting) {
-                needNormals = BABYLON.MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines, this.maxSimultaneousLights);
+                needNormals = BABYLON.MaterialHelper.PrepareDefinesForLights(scene, mesh, this._defines, true, this.maxSimultaneousLights);
             }
             // Attribs
             if (mesh) {
@@ -335,12 +336,6 @@ var BABYLON;
             }
             this._renderId = scene.getRenderId();
             this._wasPreviouslyReady = true;
-            if (mesh) {
-                if (!mesh._materialDefines) {
-                    mesh._materialDefines = new WaterMaterialDefines();
-                }
-                this._defines.cloneTo(mesh._materialDefines);
-            }
             return true;
         };
         WaterMaterial.prototype.bindOnlyWorldMatrix = function (world) {
@@ -402,7 +397,7 @@ var BABYLON;
             this._effect.setColor4("waterColor2", this.waterColor2, 1.0);
             this._effect.setFloat("colorBlendFactor2", this.colorBlendFactor2);
             this._effect.setFloat("waveSpeed", this.waveSpeed);
-            _super.prototype.bind.call(this, world, mesh);
+            this._afterBind(mesh);
         };
         WaterMaterial.prototype._createRenderTargets = function (scene, renderTargetSize) {
             var _this = this;
